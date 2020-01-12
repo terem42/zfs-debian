@@ -1,0 +1,875 @@
+From 734a892bf86e3f17bfa6b760552bcf6c9d9f389b Mon Sep 17 00:00:00 2001
+From: Ornias1993 <kjeld@schouten-lebbing.nl>
+Date: Sun, 29 Dec 2019 14:48:25 +0100
+Subject: [PATCH 1/3] Performance tests, fio enhancements: - Set fixed chunk
+ pattern, for sane compression - Adjust buffer to blocksize, for cross
+ blocksize repeatability - Use fixed seed, for improved repeatability
+
+Signed-off-by: Kjeld Schouten-Lebbing <kjeld@schouten-lebbing.nl>
+Requires-builders: style
+---
+ tests/zfs-tests/tests/perf/fio/mkfiles.fio    |  6 ++-
+ .../tests/perf/fio/random_readwrite.fio       |  8 +++-
+ .../tests/perf/fio/random_readwrite_fixed.fio |  8 +++-
+ .../tests/perf/fio/random_writes.fio          |  8 +++-
+ .../tests/perf/fio/sequential_readwrite.fio   | 40 +++++++++++++++++++
+ .../tests/perf/fio/sequential_writes.fio      |  8 +++-
+ 6 files changed, 69 insertions(+), 9 deletions(-)
+ create mode 100644 tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+
+diff --git a/tests/zfs-tests/tests/perf/fio/mkfiles.fio b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+index c7efda86d3f..afff944139c 100644
+--- a/tests/zfs-tests/tests/perf/fio/mkfiles.fio
++++ b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+@@ -11,6 +11,7 @@
+ 
+ #
+ # Copyright (c) 2016 by Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
+ #
+ 
+ [global]
+@@ -24,7 +25,10 @@ thread=1
+ directory=${DIRECTORY}
+ numjobs=${NUMJOBS}
+ filesize=${FILE_SIZE}
++randseed=1234
+ buffer_compress_percentage=66
+-buffer_compress_chunk=4096
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+index 852d4bed69b..86f9e515e99 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+@@ -10,7 +10,8 @@
+ #
+ 
+ #
+-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
++# Copyright (c) 2015, 2016, Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
+ #
+ 
+ [global]
+@@ -30,7 +31,10 @@ ioengine=psync
+ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
++randseed=1234
+ buffer_compress_percentage=66
+-buffer_compress_chunk=4096
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+index 67b88c09d79..3902d6d12bf 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+@@ -10,7 +10,8 @@
+ #
+ 
+ #
+-# Copyright (c) 2017 by Delphix. All rights reserved.
++# Copyright (c) 2015, 2016, Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
+ #
+ 
+ [global]
+@@ -30,7 +31,10 @@ ioengine=psync
+ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
++randseed=1234
+ buffer_compress_percentage=66
+-buffer_compress_chunk=4096
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_writes.fio b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+index 90db5ce3bfd..b8d7139e2bc 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+@@ -10,7 +10,8 @@
+ #
+ 
+ #
+-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
++# Copyright (c) 2015, 2016, Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
+ #
+ 
+ [global]
+@@ -28,7 +29,10 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
++randseed=1234
+ buffer_compress_percentage=66
+-buffer_compress_chunk=4096
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+new file mode 100644
+index 00000000000..218ebea3211
+--- /dev/null
++++ b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+@@ -0,0 +1,40 @@
++#
++# This file and its contents are supplied under the terms of the
++# Common Development and Distribution License ("CDDL"), version 1.0.
++# You may only use this file in accordance with the terms of version
++# 1.0 of the CDDL.
++#
++# A full copy of the text of the CDDL should have accompanied this
++# source.  A copy of the CDDL is also available via the Internet at
++# http://www.illumos.org/license/CDDL.
++#
++
++#
++# Copyright (c) 2015, 2016, Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
++#
++
++[global]
++filename_format=file$jobnum
++nrfiles=16
++group_reporting=1
++fallocate=0
++overwrite=0
++thread=1
++rw=readwrite
++rwmixread=80
++time_based=1
++directory=${DIRECTORY}
++runtime=${RUNTIME}
++bssplit=4k/50:8k/30:128k/10:1m/10
++ioengine=psync
++sync=${SYNC_TYPE}
++direct=${DIRECT}
++numjobs=${NUMJOBS}
++randseed=1234
++buffer_compress_percentage=66
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
++
++[job]
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+index 714993e92f1..e2498ebcce6 100644
+--- a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+@@ -10,7 +10,8 @@
+ #
+ 
+ #
+-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
++# Copyright (c) 2015, 2016, Delphix. All rights reserved.
++# Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
+ #
+ 
+ [global]
+@@ -28,7 +29,10 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
++randseed=1234
+ buffer_compress_percentage=66
+-buffer_compress_chunk=4096
++refill_buffers
++buffer_pattern=0xdeadbeef
++buffer_compress_chunk=0
+ 
+ [job]
+
+From efc1bcd57f313fb3619583d1898ae3d7f79dd86c Mon Sep 17 00:00:00 2001
+From: Kjeld Schouten-Lebbing <kjeld@schouten-lebbing.nl>
+Date: Thu, 2 Jan 2020 20:13:25 +0100
+Subject: [PATCH 2/3] Review feedback
+
+Requested by @Behlendorf
+
+Signed-off-by: Kjeld Schouten-Lebbing <kjeld@schouten-lebbing.nl>
+---
+ tests/zfs-tests/tests/perf/fio/mkfiles.fio                     | 3 +--
+ tests/zfs-tests/tests/perf/fio/random_readwrite.fio            | 3 +--
+ tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio      | 3 +--
+ tests/zfs-tests/tests/perf/fio/random_writes.fio               | 3 +--
+ tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio        | 3 +--
+ tests/zfs-tests/tests/perf/fio/sequential_writes.fio           | 3 +--
+ tests/zfs-tests/tests/perf/perf.shlib                          | 1 +
+ tests/zfs-tests/tests/perf/regression/random_reads.ksh         | 2 ++
+ tests/zfs-tests/tests/perf/regression/random_readwrite.ksh     | 2 ++
+ .../zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh | 2 ++
+ tests/zfs-tests/tests/perf/regression/random_writes.ksh        | 2 ++
+ tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh    | 2 ++
+ tests/zfs-tests/tests/perf/regression/sequential_reads.ksh     | 2 ++
+ .../tests/perf/regression/sequential_reads_arc_cached.ksh      | 2 ++
+ .../perf/regression/sequential_reads_arc_cached_clone.ksh      | 2 ++
+ .../tests/perf/regression/sequential_reads_dbuf_cached.ksh     | 2 ++
+ tests/zfs-tests/tests/perf/regression/sequential_writes.ksh    | 2 ++
+ 17 files changed, 27 insertions(+), 12 deletions(-)
+
+diff --git a/tests/zfs-tests/tests/perf/fio/mkfiles.fio b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+index afff944139c..1897f36861f 100644
+--- a/tests/zfs-tests/tests/perf/fio/mkfiles.fio
++++ b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+@@ -25,9 +25,8 @@ thread=1
+ directory=${DIRECTORY}
+ numjobs=${NUMJOBS}
+ filesize=${FILE_SIZE}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+index 86f9e515e99..11378095eb4 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+@@ -31,9 +31,8 @@ ioengine=psync
+ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+index 3902d6d12bf..ff661994e7a 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+@@ -31,9 +31,8 @@ ioengine=psync
+ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/fio/random_writes.fio b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+index b8d7139e2bc..7abb89b7e78 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+@@ -29,9 +29,8 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+index 218ebea3211..2969cb471bd 100644
+--- a/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
++++ b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+@@ -31,9 +31,8 @@ ioengine=psync
+ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+index e2498ebcce6..280a592230d 100644
+--- a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+@@ -29,9 +29,8 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
+-randseed=1234
++randseed=${RANDSEED}
+ buffer_compress_percentage=66
+-refill_buffers
+ buffer_pattern=0xdeadbeef
+ buffer_compress_chunk=0
+ 
+diff --git a/tests/zfs-tests/tests/perf/perf.shlib b/tests/zfs-tests/tests/perf/perf.shlib
+index e2e84ca02ac..7a72575bb5d 100644
+--- a/tests/zfs-tests/tests/perf/perf.shlib
++++ b/tests/zfs-tests/tests/perf/perf.shlib
+@@ -106,6 +106,7 @@ function do_fio_run_impl
+ 	log_note "DIRECTORY: " $DIRECTORY
+ 
+ 	export RUNTIME=$PERF_RUNTIME
++	export RANDSEED=$PERF_RANDSEED
+ 	export FILESIZE=$((TOTAL_SIZE / threads))
+ 	export NUMJOBS=$threads
+ 	export SYNC_TYPE=$sync
+diff --git a/tests/zfs-tests/tests/perf/regression/random_reads.ksh b/tests/zfs-tests/tests/perf/regression/random_reads.ksh
+index 079a536808f..5e6cc4e9d51 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_reads.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_reads.ksh
+@@ -58,6 +58,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -65,6 +66,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'16 32'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh b/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
+index 5090d1998fd..678aa7de053 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
+@@ -58,6 +58,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'4 8 16 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -65,6 +66,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=''		# bssplit used instead
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh b/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
+index e368ed23677..da6cdfb0c94 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
+@@ -47,6 +47,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -54,6 +55,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES='8k 64k'
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_writes.ksh b/tests/zfs-tests/tests/perf/regression/random_writes.ksh
+index 3101ac993cf..2960693f466 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_writes.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_writes.ksh
+@@ -57,6 +57,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -64,6 +65,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 256k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'32 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh b/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
+index e0b25320095..a9bb9e6ae64 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
+@@ -45,6 +45,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ 
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 2 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
+@@ -53,6 +54,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 16 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
+index 37e21962793..d60fba7718f 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
+@@ -58,6 +58,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -65,6 +66,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
+index 9528d97d6c6..5f8cfbfe5e9 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
+@@ -48,6 +48,7 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -55,6 +56,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
+index f2747640e47..579cc6c6e6f 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
+@@ -54,6 +54,7 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -61,6 +62,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
+index 884856c2f2f..95cf26d10fb 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
+@@ -52,6 +52,7 @@ export TOTAL_SIZE=$(($(get_max_dbuf_cache_size) * 3 / 4))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -59,6 +60,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh b/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
+index 8ea4f841965..4b80e03bd44 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
+@@ -57,6 +57,7 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ # Variables for use by fio.
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -64,6 +65,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 256k'}
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
++	export RANDSEED=${PERF_RANDSEED:-'1234'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'16 32'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+
+From bf636176342b52827e503ec96329134f7be6c5e7 Mon Sep 17 00:00:00 2001
+From: Kjeld Schouten-Lebbing <kjeld@schouten-lebbing.nl>
+Date: Wed, 8 Jan 2020 12:16:56 +0100
+Subject: [PATCH 3/3] Move comp-percent and comp-chunk to variables set
+ variables (mostly) to old defaults keep deadbeef pattern
+
+Signed-off-by: Kjeld Schouten-Lebbing <kjeld@schouten-lebbing.nl>
+---
+ tests/zfs-tests/tests/perf/fio/mkfiles.fio                    | 4 ++--
+ tests/zfs-tests/tests/perf/fio/random_readwrite.fio           | 4 ++--
+ tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio     | 4 ++--
+ tests/zfs-tests/tests/perf/fio/random_writes.fio              | 4 ++--
+ tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio       | 4 ++--
+ tests/zfs-tests/tests/perf/fio/sequential_writes.fio          | 4 ++--
+ tests/zfs-tests/tests/perf/perf.shlib                         | 2 ++
+ tests/zfs-tests/tests/perf/regression/random_reads.ksh        | 4 ++++
+ tests/zfs-tests/tests/perf/regression/random_readwrite.ksh    | 4 ++++
+ .../tests/perf/regression/random_readwrite_fixed.ksh          | 4 ++++
+ tests/zfs-tests/tests/perf/regression/random_writes.ksh       | 4 ++++
+ tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh   | 4 ++++
+ tests/zfs-tests/tests/perf/regression/sequential_reads.ksh    | 4 ++++
+ .../tests/perf/regression/sequential_reads_arc_cached.ksh     | 4 ++++
+ .../perf/regression/sequential_reads_arc_cached_clone.ksh     | 4 ++++
+ .../tests/perf/regression/sequential_reads_dbuf_cached.ksh    | 4 ++++
+ tests/zfs-tests/tests/perf/regression/sequential_writes.ksh   | 4 ++++
+ 17 files changed, 54 insertions(+), 12 deletions(-)
+
+diff --git a/tests/zfs-tests/tests/perf/fio/mkfiles.fio b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+index 1897f36861f..2134a935508 100644
+--- a/tests/zfs-tests/tests/perf/fio/mkfiles.fio
++++ b/tests/zfs-tests/tests/perf/fio/mkfiles.fio
+@@ -26,8 +26,8 @@ directory=${DIRECTORY}
+ numjobs=${NUMJOBS}
+ filesize=${FILE_SIZE}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+index 11378095eb4..f8eb6dbdfe4 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite.fio
+@@ -32,8 +32,8 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+index ff661994e7a..e83b48076d0 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_readwrite_fixed.fio
+@@ -32,8 +32,8 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/random_writes.fio b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+index 7abb89b7e78..3b84b199438 100644
+--- a/tests/zfs-tests/tests/perf/fio/random_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/random_writes.fio
+@@ -30,8 +30,8 @@ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+index 2969cb471bd..2037ba2f67c 100644
+--- a/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
++++ b/tests/zfs-tests/tests/perf/fio/sequential_readwrite.fio
+@@ -32,8 +32,8 @@ sync=${SYNC_TYPE}
+ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+index 280a592230d..4582c818815 100644
+--- a/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
++++ b/tests/zfs-tests/tests/perf/fio/sequential_writes.fio
+@@ -30,8 +30,8 @@ direct=${DIRECT}
+ numjobs=${NUMJOBS}
+ filesize=${FILESIZE}
+ randseed=${RANDSEED}
+-buffer_compress_percentage=66
++buffer_compress_percentage=${COMPPERCENT}
+ buffer_pattern=0xdeadbeef
+-buffer_compress_chunk=0
++buffer_compress_chunk=${COMPCHUNK}
+ 
+ [job]
+diff --git a/tests/zfs-tests/tests/perf/perf.shlib b/tests/zfs-tests/tests/perf/perf.shlib
+index 7a72575bb5d..47abff09dff 100644
+--- a/tests/zfs-tests/tests/perf/perf.shlib
++++ b/tests/zfs-tests/tests/perf/perf.shlib
+@@ -107,6 +107,8 @@ function do_fio_run_impl
+ 
+ 	export RUNTIME=$PERF_RUNTIME
+ 	export RANDSEED=$PERF_RANDSEED
++	export COMPPERCENT=$PERF_COMPPERCENT
++	export COMPCHUNK=$PERF_COMPCHUNK
+ 	export FILESIZE=$((TOTAL_SIZE / threads))
+ 	export NUMJOBS=$threads
+ 	export SYNC_TYPE=$sync
+diff --git a/tests/zfs-tests/tests/perf/regression/random_reads.ksh b/tests/zfs-tests/tests/perf/regression/random_reads.ksh
+index 5e6cc4e9d51..8e2058666e5 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_reads.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_reads.ksh
+@@ -59,6 +59,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -67,6 +69,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'16 32'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh b/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
+index 678aa7de053..625960a277a 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_readwrite.ksh
+@@ -59,6 +59,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'4 8 16 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -67,6 +69,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh b/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
+index da6cdfb0c94..e6272992d02 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_readwrite_fixed.ksh
+@@ -48,6 +48,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -56,6 +58,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_writes.ksh b/tests/zfs-tests/tests/perf/regression/random_writes.ksh
+index 2960693f466..cba27b29d4d 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_writes.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_writes.ksh
+@@ -58,6 +58,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -66,6 +68,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'32 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh b/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
+index a9bb9e6ae64..7d3ea6cf901 100755
+--- a/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
++++ b/tests/zfs-tests/tests/perf/regression/random_writes_zil.ksh
+@@ -46,6 +46,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 2 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
+@@ -55,6 +57,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 16 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
+index d60fba7718f..265acb50b1d 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads.ksh
+@@ -59,6 +59,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -67,6 +69,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
+index 5f8cfbfe5e9..9163a903c34 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached.ksh
+@@ -49,6 +49,8 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -57,6 +59,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
+index 579cc6c6e6f..b431528f962 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_arc_cached_clone.ksh
+@@ -55,6 +55,8 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -63,6 +65,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh b/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
+index 95cf26d10fb..eeb703dd6ea 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_reads_dbuf_cached.ksh
+@@ -53,6 +53,8 @@ export TOTAL_SIZE=$(($(get_max_dbuf_cache_size) * 3 / 4))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -61,6 +63,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+diff --git a/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh b/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
+index 4b80e03bd44..e2f4cf67ed9 100755
+--- a/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
++++ b/tests/zfs-tests/tests/perf/regression/sequential_writes.ksh
+@@ -58,6 +58,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
+ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+@@ -66,6 +68,8 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
+ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
+ 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+ 	export RANDSEED=${PERF_RANDSEED:-'1234'}
++	export COMPPERCENT=${PERF_COMPPERCENT:-'66'}
++	export COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+ 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
+ 	export PERF_NTHREADS=${PERF_NTHREADS:-'16 32'}
+ 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}

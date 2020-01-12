@@ -1,0 +1,2719 @@
+From ed074a072a2c7dbe38aaaa91a261aacd28e8344d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Attila=20F=C3=BCl=C3=B6p?= <attila@fueloep.org>
+Date: Mon, 23 Sep 2019 21:02:16 +0200
+Subject: [PATCH] ICP: Improve AES-GCM performance
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Currently SIMD accelerated AES-GCM performance is limited by two
+factors:
+
+a. The need to disable preemption and interrupts and save the FPU
+state before using it and to do the reverse when done. Due to the
+way the code is organized (see (b) below) we have to pay this price
+twice for each 16 byte GCM block processed.
+
+b. Most processing is done in C, operating on single GCM blocks.
+The use of SIMD instructions is limited to the AES encryption of the
+counter block (AES-NI) and the Galois multiplication (PCLMULQDQ).
+This leads to the FPU not being fully utilized for crypto
+operations.
+
+To solve (a) we do crypto processing in larger chunks while owning
+the FPU. An `icp_gcm_avx_chunk_size` module parameter was introduced
+to make this chunk size tweakable. It defaults to 32 KiB. This step
+alone roughly doubles performance. (b) is tackled by porting and
+using the highly optimized openssl AES-GCM assembler routines, which
+do all the processing (CTR, AES, GMULT) in a single routine. Both
+steps together result in up to 32x reduction of the time spend in
+the en/decryption routines, leading up to approximately 12x
+throughput increase for large (128 KiB) blocks.
+
+Signed-off-by: Attila Fülöp <attila@fueloep.org>
+---
+ config/toolchain-simd.m4                      |  20 +
+ include/os/linux/kernel/linux/simd_x86.h      |  13 +
+ lib/libicp/Makefile.am                        |   2 +
+ lib/libspl/include/sys/simd.h                 |  15 +-
+ module/icp/Makefile.in                        |   2 +
+ module/icp/algs/modes/gcm.c                   | 726 +++++++++++++-
+ .../icp/asm-x86_64/modes/aesni-gcm-x86_64.S   | 892 ++++++++++++++++++
+ module/icp/asm-x86_64/modes/ghash-x86_64.S    | 714 ++++++++++++++
+ module/icp/include/aes/aes_impl.h             |   5 +
+ module/icp/include/modes/modes.h              |  29 +-
+ 10 files changed, 2397 insertions(+), 21 deletions(-)
+ create mode 100644 module/icp/asm-x86_64/modes/aesni-gcm-x86_64.S
+ create mode 100644 module/icp/asm-x86_64/modes/ghash-x86_64.S
+
+diff --git a/config/toolchain-simd.m4 b/config/toolchain-simd.m4
+index 37627b813bb..d9f0607e716 100644
+--- a/config/toolchain-simd.m4
++++ b/config/toolchain-simd.m4
+@@ -401,3 +401,23 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ], [
+ 		AC_MSG_RESULT([no])
+ 	])
+ ])
++
++dnl #
++dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
++dnl #
++AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
++	AC_MSG_CHECKING([whether host toolchain supports MOVBE])
++
++	AC_LINK_IFELSE([AC_LANG_SOURCE([
++	[
++		void main()
++		{
++			__asm__ __volatile__("movbe 0(%eax), %eax");
++		}
++	]])], [
++		AC_MSG_RESULT([yes])
++		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
++	], [
++		AC_MSG_RESULT([no])
++	])
++])
+diff --git a/include/os/linux/kernel/linux/simd_x86.h b/include/os/linux/kernel/linux/simd_x86.h
+index 67d8cdc3acc..cdd3286d214 100644
+--- a/include/os/linux/kernel/linux/simd_x86.h
++++ b/include/os/linux/kernel/linux/simd_x86.h
+@@ -477,6 +477,19 @@ zfs_pclmulqdq_available(void)
+ #endif
+ }
+ 
++/*
++ * Check if MOVBE instruction is available
++ */
++static inline boolean_t
++zfs_movbe_available(void)
++{
++#if defined(X86_FEATURE_MOVBE)
++	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
++#else
++	return (B_FALSE);
++#endif
++}
++
+ /*
+  * AVX-512 family of instruction sets:
+  *
+diff --git a/lib/libicp/Makefile.am b/lib/libicp/Makefile.am
+index 8b6c4177144..2bc1e2ed2a6 100644
+--- a/lib/libicp/Makefile.am
++++ b/lib/libicp/Makefile.am
+@@ -15,6 +15,8 @@ ASM_SOURCES_AS = \
+ 	asm-x86_64/aes/aes_amd64.S \
+ 	asm-x86_64/aes/aes_aesni.S \
+ 	asm-x86_64/modes/gcm_pclmulqdq.S \
++	asm-x86_64/modes/aesni-gcm-x86_64.S \
++	asm-x86_64/modes/ghash-x86_64.S \
+ 	asm-x86_64/sha1/sha1-x86_64.S \
+ 	asm-x86_64/sha2/sha256_impl.S \
+ 	asm-x86_64/sha2/sha512_impl.S
+diff --git a/lib/libspl/include/sys/simd.h b/lib/libspl/include/sys/simd.h
+index b25e476a33b..99cec4c749d 100644
+--- a/lib/libspl/include/sys/simd.h
++++ b/lib/libspl/include/sys/simd.h
+@@ -77,7 +77,8 @@ typedef enum cpuid_inst_sets {
+ 	AVX512ER,
+ 	AVX512VL,
+ 	AES,
+-	PCLMULQDQ
++	PCLMULQDQ,
++	MOVBE
+ } cpuid_inst_sets_t;
+ 
+ /*
+@@ -101,6 +102,7 @@ typedef struct cpuid_feature_desc {
+ #define	_AVX512VL_BIT		(1U << 31) /* if used also check other levels */
+ #define	_AES_BIT		(1U << 25)
+ #define	_PCLMULQDQ_BIT		(1U << 1)
++#define	_MOVBE_BIT		(1U << 22)
+ 
+ /*
+  * Descriptions of supported instruction sets
+@@ -128,6 +130,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
+ 	[AVX512VL]	= {7U, 0U, _AVX512ER_BIT,	EBX	},
+ 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
+ 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
++	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
+ };
+ 
+ /*
+@@ -200,6 +203,7 @@ CPUID_FEATURE_CHECK(avx512er, AVX512ER);
+ CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
+ CPUID_FEATURE_CHECK(aes, AES);
+ CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
++CPUID_FEATURE_CHECK(movbe, MOVBE);
+ 
+ /*
+  * Detect register set support
+@@ -332,6 +336,15 @@ zfs_pclmulqdq_available(void)
+ 	return (__cpuid_has_pclmulqdq());
+ }
+ 
++/*
++ * Check if MOVBE instruction is available
++ */
++static inline boolean_t
++zfs_movbe_available(void)
++{
++	return (__cpuid_has_movbe());
++}
++
+ /*
+  * AVX-512 family of instruction sets:
+  *
+diff --git a/module/icp/Makefile.in b/module/icp/Makefile.in
+index 18e8dc313b2..e41c68c249a 100644
+--- a/module/icp/Makefile.in
++++ b/module/icp/Makefile.in
+@@ -10,6 +10,8 @@ ASM_SOURCES := asm-x86_64/aes/aeskey.o
+ ASM_SOURCES += asm-x86_64/aes/aes_amd64.o
+ ASM_SOURCES += asm-x86_64/aes/aes_aesni.o
+ ASM_SOURCES += asm-x86_64/modes/gcm_pclmulqdq.o
++ASM_SOURCES += asm-x86_64/modes/aesni-gcm-x86_64.o
++ASM_SOURCES += asm-x86_64/modes/ghash-x86_64.o
+ ASM_SOURCES += asm-x86_64/sha1/sha1-x86_64.o
+ ASM_SOURCES += asm-x86_64/sha2/sha256_impl.o
+ ASM_SOURCES += asm-x86_64/sha2/sha512_impl.o
+diff --git a/module/icp/algs/modes/gcm.c b/module/icp/algs/modes/gcm.c
+index 8d1b8822ad2..31f280ea696 100644
+--- a/module/icp/algs/modes/gcm.c
++++ b/module/icp/algs/modes/gcm.c
+@@ -30,12 +30,46 @@
+ #include <sys/byteorder.h>
+ #include <sys/simd.h>
+ #include <modes/gcm_impl.h>
++#ifdef CAN_USE_GCM_ASM
++#include <aes/aes_impl.h>
++#endif
+ 
+ #define	GHASH(c, d, t, o) \
+ 	xor_block((uint8_t *)(d), (uint8_t *)(c)->gcm_ghash); \
+ 	(o)->mul((uint64_t *)(void *)(c)->gcm_ghash, (c)->gcm_H, \
+ 	(uint64_t *)(void *)(t));
+ 
++/* Select GCM implementation */
++#define	IMPL_FASTEST	(UINT32_MAX)
++#define	IMPL_CYCLE	(UINT32_MAX-1)
++#ifdef CAN_USE_GCM_ASM
++#define	IMPL_AVX	(UINT32_MAX-2)
++#endif
++#define	GCM_IMPL_READ(i) (*(volatile uint32_t *) &(i))
++static uint32_t icp_gcm_impl = IMPL_FASTEST;
++static uint32_t user_sel_impl = IMPL_FASTEST;
++
++#ifdef CAN_USE_GCM_ASM
++/*
++ * Whether to use the optimized openssl gcm and ghash implementations.
++ * Set to true if module parameter icp_gcm_impl == "avx".
++ */
++static boolean_t gcm_use_avx = B_FALSE;
++#define	GCM_IMPL_USE_AVX	(*(volatile boolean_t *)&gcm_use_avx)
++
++static inline boolean_t gcm_avx_will_work(void);
++static inline void gcm_set_avx(boolean_t);
++static inline boolean_t gcm_toggle_avx(void);
++
++static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
++    crypto_data_t *, size_t);
++
++static int gcm_encrypt_final_avx(gcm_ctx_t *, crypto_data_t *, size_t);
++static int gcm_decrypt_final_avx(gcm_ctx_t *, crypto_data_t *, size_t);
++static int gcm_init_avx(gcm_ctx_t *, unsigned char *, size_t, unsigned char *,
++    size_t, size_t);
++#endif /* ifdef CAN_USE_GCM_ASM */
++
+ /*
+  * Encrypt multiple blocks of data in GCM mode.  Decrypt for GCM mode
+  * is done in another function.
+@@ -47,6 +81,12 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
+     void (*copy_block)(uint8_t *, uint8_t *),
+     void (*xor_block)(uint8_t *, uint8_t *))
+ {
++#ifdef CAN_USE_GCM_ASM
++	if (ctx->gcm_use_avx == B_TRUE)
++		return (gcm_mode_encrypt_contiguous_blocks_avx(
++		    ctx, data, length, out, block_size));
++#endif
++
+ 	const gcm_impl_ops_t *gops;
+ 	size_t remainder = length;
+ 	size_t need = 0;
+@@ -112,6 +152,7 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
+ 		ctx->gcm_processed_data_len += block_size;
+ 
+ 		if (out == NULL) {
++			/* FIXME: See issue #9661 */
+ 			if (ctx->gcm_remainder_len > 0) {
+ 				bcopy(blockp, ctx->gcm_copy_to,
+ 				    ctx->gcm_remainder_len);
+@@ -171,6 +212,11 @@ gcm_encrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
+     void (*copy_block)(uint8_t *, uint8_t *),
+     void (*xor_block)(uint8_t *, uint8_t *))
+ {
++#ifdef CAN_USE_GCM_ASM
++	if (ctx->gcm_use_avx == B_TRUE)
++		return (gcm_encrypt_final_avx(ctx, out, block_size));
++#endif
++
+ 	const gcm_impl_ops_t *gops;
+ 	uint64_t counter_mask = ntohll(0x00000000ffffffffULL);
+ 	uint8_t *ghash, *macp = NULL;
+@@ -325,6 +371,11 @@ gcm_decrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
+     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
+     void (*xor_block)(uint8_t *, uint8_t *))
+ {
++#ifdef CAN_USE_GCM_ASM
++	if (ctx->gcm_use_avx == B_TRUE)
++		return (gcm_decrypt_final_avx(ctx, out, block_size));
++#endif
++
+ 	const gcm_impl_ops_t *gops;
+ 	size_t pt_len;
+ 	size_t remainder;
+@@ -530,6 +581,9 @@ gcm_init(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
+ 	return (CRYPTO_SUCCESS);
+ }
+ 
++/*
++ * Init the GCM context struct. Handle the cycle and avx implementations here.
++ */
+ int
+ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
+     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
+@@ -560,11 +614,37 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
+ 		return (CRYPTO_MECHANISM_PARAM_INVALID);
+ 	}
+ 
+-	if (gcm_init(gcm_ctx, gcm_param->pIv, gcm_param->ulIvLen,
+-	    gcm_param->pAAD, gcm_param->ulAADLen, block_size,
+-	    encrypt_block, copy_block, xor_block) != 0) {
+-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
++#ifdef CAN_USE_GCM_ASM
++	/*
++	 * Handle the "cycle" implementation by creating avx and non avx
++	 * contexts alternately.
++	 */
++	if (GCM_IMPL_READ(icp_gcm_impl) != IMPL_CYCLE) {
++		gcm_ctx->gcm_use_avx = GCM_IMPL_USE_AVX;
++	} else {
++		gcm_ctx->gcm_use_avx = gcm_toggle_avx();
++	}
++	/* We don't handle byte swapped key schedules in the avx code path. */
++	aes_key_t *ks = (aes_key_t *)gcm_ctx->gcm_keysched;
++	if (ks->ops->needs_byteswap == B_TRUE) {
++		gcm_ctx->gcm_use_avx = B_FALSE;
++	}
++	/* Avx and non avx context initialization differs from here on. */
++	if (gcm_ctx->gcm_use_avx == B_FALSE) {
++#endif /* ifdef CAN_USE_GCM_ASM */
++		if (gcm_init(gcm_ctx, gcm_param->pIv, gcm_param->ulIvLen,
++		    gcm_param->pAAD, gcm_param->ulAADLen, block_size,
++		    encrypt_block, copy_block, xor_block) != 0) {
++			rv = CRYPTO_MECHANISM_PARAM_INVALID;
++		}
++#ifdef CAN_USE_GCM_ASM
++	} else {
++		if (gcm_init_avx(gcm_ctx, gcm_param->pIv, gcm_param->ulIvLen,
++		    gcm_param->pAAD, gcm_param->ulAADLen, block_size) != 0) {
++			rv = CRYPTO_MECHANISM_PARAM_INVALID;
++		}
+ 	}
++#endif /* ifdef CAN_USE_GCM_ASM */
+ 
+ 	return (rv);
+ }
+@@ -594,11 +674,37 @@ gmac_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
+ 		return (CRYPTO_MECHANISM_PARAM_INVALID);
+ 	}
+ 
+-	if (gcm_init(gcm_ctx, gmac_param->pIv, AES_GMAC_IV_LEN,
+-	    gmac_param->pAAD, gmac_param->ulAADLen, block_size,
+-	    encrypt_block, copy_block, xor_block) != 0) {
+-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
++#ifdef CAN_USE_GCM_ASM
++	/*
++	 * Handle the "cycle" implementation by creating avx and non avx
++	 * contexts alternately.
++	 */
++	if (GCM_IMPL_READ(icp_gcm_impl) != IMPL_CYCLE) {
++		gcm_ctx->gcm_use_avx = GCM_IMPL_USE_AVX;
++	} else {
++		gcm_ctx->gcm_use_avx = gcm_toggle_avx();
++	}
++	/* We don't handle byte swapped key schedules in the avx code path. */
++	aes_key_t *ks = (aes_key_t *)gcm_ctx->gcm_keysched;
++	if (ks->ops->needs_byteswap == B_TRUE) {
++		gcm_ctx->gcm_use_avx = B_FALSE;
++	}
++	/* Avx and non avx context initialization differs from here on. */
++	if (gcm_ctx->gcm_use_avx == B_FALSE) {
++#endif	/* ifdef CAN_USE_GCM_ASM */
++		if (gcm_init(gcm_ctx, gmac_param->pIv, AES_GMAC_IV_LEN,
++		    gmac_param->pAAD, gmac_param->ulAADLen, block_size,
++		    encrypt_block, copy_block, xor_block) != 0) {
++			rv = CRYPTO_MECHANISM_PARAM_INVALID;
++		}
++#ifdef CAN_USE_GCM_ASM
++	} else {
++		if (gcm_init_avx(gcm_ctx, gmac_param->pIv, AES_GMAC_IV_LEN,
++		    gmac_param->pAAD, gmac_param->ulAADLen, block_size) != 0) {
++			rv = CRYPTO_MECHANISM_PARAM_INVALID;
++		}
+ 	}
++#endif /* ifdef CAN_USE_GCM_ASM */
+ 
+ 	return (rv);
+ }
+@@ -649,15 +755,6 @@ const gcm_impl_ops_t *gcm_all_impl[] = {
+ /* Indicate that benchmark has been completed */
+ static boolean_t gcm_impl_initialized = B_FALSE;
+ 
+-/* Select GCM implementation */
+-#define	IMPL_FASTEST	(UINT32_MAX)
+-#define	IMPL_CYCLE	(UINT32_MAX-1)
+-
+-#define	GCM_IMPL_READ(i) (*(volatile uint32_t *) &(i))
+-
+-static uint32_t icp_gcm_impl = IMPL_FASTEST;
+-static uint32_t user_sel_impl = IMPL_FASTEST;
+-
+ /* Hold all supported implementations */
+ static size_t gcm_supp_impl_cnt = 0;
+ static gcm_impl_ops_t *gcm_supp_impl[ARRAY_SIZE(gcm_all_impl)];
+@@ -737,6 +834,12 @@ gcm_impl_init(void)
+ 
+ 	strcpy(gcm_fastest_impl.name, "fastest");
+ 
++#ifdef CAN_USE_GCM_ASM
++	/* FIXME: Should we make `avx` the `fastest` implementation? */
++	if (gcm_avx_will_work()) {
++		gcm_set_avx(B_TRUE);
++	}
++#endif
+ 	/* Finish initialization */
+ 	atomic_swap_32(&icp_gcm_impl, user_sel_impl);
+ 	gcm_impl_initialized = B_TRUE;
+@@ -748,6 +851,9 @@ static const struct {
+ } gcm_impl_opts[] = {
+ 		{ "cycle",	IMPL_CYCLE },
+ 		{ "fastest",	IMPL_FASTEST },
++#ifdef CAN_USE_GCM_ASM
++		{ "avx",	IMPL_AVX },
++#endif
+ };
+ 
+ /*
+@@ -781,6 +887,12 @@ gcm_impl_set(const char *val)
+ 
+ 	/* Check mandatory options */
+ 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
++#ifdef CAN_USE_GCM_ASM
++		/* Ignore avx implementation if it won't work */
++		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
++			continue;
++		}
++#endif
+ 		if (strcmp(req_name, gcm_impl_opts[i].name) == 0) {
+ 			impl = gcm_impl_opts[i].sel;
+ 			err = 0;
+@@ -799,6 +911,15 @@ gcm_impl_set(const char *val)
+ 			}
+ 		}
+ 	}
++#ifdef CAN_USE_GCM_ASM
++	/* FIXME: Should we make `avx` the `fastest` implementation? */
++	if (gcm_avx_will_work() == B_TRUE &&
++	    (impl == IMPL_AVX || impl == IMPL_FASTEST)) {
++		gcm_set_avx(B_TRUE);
++	} else {
++		gcm_set_avx(B_FALSE);
++	}
++#endif
+ 
+ 	if (err == 0) {
+ 		if (gcm_impl_initialized)
+@@ -829,6 +950,12 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
+ 
+ 	/* list mandatory options */
+ 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
++#ifdef CAN_USE_GCM_ASM
++		/* Ignore avx implementation if it won't work */
++		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
++			continue;
++		}
++#endif
+ 		fmt = (impl == gcm_impl_opts[i].sel) ? "[%s] " : "%s ";
+ 		cnt += sprintf(buffer + cnt, fmt, gcm_impl_opts[i].name);
+ 	}
+@@ -845,4 +972,567 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
+ module_param_call(icp_gcm_impl, icp_gcm_impl_set, icp_gcm_impl_get,
+     NULL, 0644);
+ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
+-#endif
++#endif /* defined(__KERNEL) */
++
++#ifdef CAN_USE_GCM_ASM
++#define	GCM_BLOCK_LEN 16
++/*
++ * The openssl asm routines are 6x aggregated and need that many bytes
++ * at minimum.
++ */
++#define	GCM_AVX_MIN_DECRYPT_BYTES (GCM_BLOCK_LEN * 6)
++#define	GCM_AVX_MIN_ENCRYPT_BYTES (GCM_BLOCK_LEN * 6 * 3)
++/*
++ * Ensure the chunk size is reasonable since we are allocating a
++ * GCM_AVX_MAX_CHUNK_SIZEd buffer and disabling preemption and interrupts.
++ */
++#define	GCM_AVX_MAX_CHUNK_SIZE \
++	(((128*1024)/GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES)
++
++/* Get the chunk size module parameter. */
++#define	GCM_CHUNK_SIZE_READ *(volatile uint32_t *) &gcm_avx_chunk_size
++
++/*
++ * FIXME: Do we need this? There was a bug were FPU regs leaked to
++ * userspace and they hold sensitive internal crypto data. The performance
++ * impact is measurable. TODO
++ */
++#define	clear_fpu_regs() clear_fpu_regs_avx()  // Don't leak internal state.
++#define	GHASH_AVX(ctx, in, len) \
++    gcm_ghash_avx((ctx)->gcm_ghash, (const uint64_t (*)[2])(ctx)->gcm_Htable, \
++    in, len)
++
++#define	gcm_incr_counter_block(ctx) gcm_incr_counter_block_by(ctx, 1)
++
++/*
++ * Module parameter: number of bytes to process at once while owning the FPU.
++ * Rounded down to the next GCM_AVX_MIN_DECRYPT_BYTES byte boundary and is
++ * ensured to be greater or equal than GCM_AVX_MIN_DECRYPT_BYTES.
++ */
++static uint32_t gcm_avx_chunk_size =
++	((32 * 1024) / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
++
++extern boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
++extern void clear_fpu_regs_avx(void);
++extern void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
++extern void aes_encrypt_intel(const uint32_t rk[], int nr,
++    const uint32_t pt[4], uint32_t ct[4]);
++
++extern void gcm_init_htab_avx(uint64_t Htable[16][2], const uint64_t H[2]);
++extern void gcm_ghash_avx(uint64_t ghash[2], const uint64_t Htable[16][2],
++    const uint8_t *in, size_t len);
++
++extern size_t aesni_gcm_encrypt(const uint8_t *, uint8_t *, size_t,
++    const void *, uint64_t *, uint64_t *);
++
++extern size_t aesni_gcm_decrypt(const uint8_t *, uint8_t *, size_t,
++    const void *, uint64_t *, uint64_t *);
++
++static inline boolean_t
++gcm_avx_will_work(void)
++{
++	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
++	return (kfpu_allowed() &&
++	    zfs_avx_available() && zfs_movbe_available() &&
++	    zfs_aes_available() && zfs_pclmulqdq_available());
++}
++
++static inline void
++gcm_set_avx(boolean_t val)
++{
++	if (gcm_avx_will_work() == B_TRUE) {
++		atomic_swap_32(&gcm_use_avx, val);
++	}
++}
++
++static inline boolean_t
++gcm_toggle_avx(void)
++{
++	if (gcm_avx_will_work() == B_TRUE) {
++		return (atomic_toggle_boolean_nv(&GCM_IMPL_USE_AVX));
++	} else {
++		return (B_FALSE);
++	}
++}
++
++/*
++ * FIXME: Doesn't seem to be done on the aes side, do we need to do this?
++ * ctx->gcm_remainder may contain a plain text remainder.
++ * ctx->gcm_H, ctx->gcm_Htable, ctx->gcm_J0 and ctx->gcm_tmp maybe used for a
++ * known plain text attack: H is the encrypted zero block, Htable is derived
++ * from H and J0 and tmp are the encrypted initial counter block and the last
++ * counter block respectively. The first 12 bytes of a counter block is the IV,
++ * followed by a 4 byte counter which is either 1 or processed_data_len / 16.
++ */
++static inline void
++gcm_clear_ctx(gcm_ctx_t *ctx)
++{
++	bzero(ctx->gcm_remainder, sizeof (ctx->gcm_remainder));
++	bzero(ctx->gcm_H, sizeof (ctx->gcm_H));
++	bzero(ctx->gcm_Htable, sizeof (ctx->gcm_Htable));
++	bzero(ctx->gcm_J0, sizeof (ctx->gcm_J0));
++	bzero(ctx->gcm_tmp, sizeof (ctx->gcm_tmp));
++}
++
++/* Increment the GCM counter block by n */
++static inline void
++gcm_incr_counter_block_by(gcm_ctx_t *ctx, int n)
++{
++	uint64_t counter_mask = ntohll(0x00000000ffffffffULL);
++	uint64_t counter = ntohll(ctx->gcm_cb[1] & counter_mask);
++
++	counter = htonll(counter + n);
++	counter &= counter_mask;
++	ctx->gcm_cb[1] = (ctx->gcm_cb[1] & ~counter_mask) | counter;
++}
++
++/*
++ * Encrypt multiple blocks of data in GCM mode.
++ * This is done in gcm_avx_chunk_size chunks, utilizing AVX assembler routines
++ * if possible. While processing a chunk the FPU is "locked".
++ */
++static int
++gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
++    size_t length, crypto_data_t *out, size_t block_size)
++{
++	size_t bleft = length;
++	size_t need = 0;
++	size_t done = 0;
++	uint8_t *datap = (uint8_t *)data;
++	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
++	const aes_key_t *key = ((aes_key_t *)ctx->gcm_keysched);
++	uint64_t *ghash = ctx->gcm_ghash;
++	uint64_t *cb = ctx->gcm_cb;
++	uint8_t *ct_buf = NULL;
++	uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
++	int rv = CRYPTO_SUCCESS;
++
++	ASSERT(block_size == GCM_BLOCK_LEN);
++	/*
++	 * If the last call left an incomplete block, try to fill
++	 * it first.
++	 */
++	if (ctx->gcm_remainder_len > 0) {
++		need = block_size - ctx->gcm_remainder_len;
++		if (length < need) {
++			/* accumulate bytes here and return */
++			bcopy(datap, (uint8_t *)ctx->gcm_remainder +
++			    ctx->gcm_remainder_len, length);
++
++			ctx->gcm_remainder_len += length;
++			if (ctx->gcm_copy_to == NULL) {
++				ctx->gcm_copy_to = datap;
++			}
++			return (CRYPTO_SUCCESS);
++		} else {
++			/* Complete incomplete block. */
++			bcopy(datap, (uint8_t *)ctx->gcm_remainder +
++			    ctx->gcm_remainder_len, need);
++
++			ctx->gcm_copy_to = NULL;
++		}
++	}
++
++	/* Allocate a buffer to encrypt to if there is enough input. */
++	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
++		ct_buf = vmem_alloc(chunk_size, ctx->gcm_kmflag);
++		if (ct_buf == NULL) {
++			return (CRYPTO_HOST_MEMORY);
++		}
++	}
++
++	/* If we completed an incomplete block, encrypt and write it out. */
++	if (ctx->gcm_remainder_len > 0) {
++		kfpu_begin();
++		aes_encrypt_intel(key->encr_ks.ks32, key->nr,
++		    (const uint32_t *)cb, (uint32_t *)tmp);
++
++		gcm_xor_avx((const uint8_t *) ctx->gcm_remainder, tmp);
++		GHASH_AVX(ctx, tmp, block_size);
++		clear_fpu_regs();
++		kfpu_end();
++		if (out != NULL) {
++			rv = crypto_put_output_data(tmp, out, block_size);
++			out->cd_offset += block_size;
++		} else {
++			/* FIXME: See issue #9661 */
++			bcopy(ctx->gcm_remainder, ctx->gcm_copy_to,
++			    ctx->gcm_remainder_len);
++			bcopy(ctx->gcm_remainder + ctx->gcm_remainder_len,
++			    datap, need);
++		}
++		gcm_incr_counter_block(ctx);
++		ctx->gcm_processed_data_len += block_size;
++		bleft -= need;
++		datap += need;
++		ctx->gcm_remainder_len = 0;
++	}
++
++	/* Do the bulk encryption in chunk_size blocks. */
++	for (; bleft >= chunk_size; bleft -= chunk_size) {
++		kfpu_begin();
++		done = aesni_gcm_encrypt(
++		    datap, ct_buf, chunk_size, key, cb, ghash);
++
++		clear_fpu_regs();
++		kfpu_end();
++		if (done != chunk_size) {
++			rv = CRYPTO_FAILED;
++			goto out_nofpu;
++		}
++		if (out != NULL) {
++			rv = crypto_put_output_data(ct_buf, out, chunk_size);
++			if (rv != CRYPTO_SUCCESS) {
++				goto out_nofpu;
++			}
++			out->cd_offset += chunk_size;
++		}
++		datap += chunk_size;
++		ctx->gcm_processed_data_len += chunk_size;
++	}
++	/* Check if we are already done. */
++	if (bleft == 0) {
++		goto out_nofpu;
++	}
++	/* Bulk encrypt the remaining data. */
++	kfpu_begin();
++	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
++		done = aesni_gcm_encrypt(datap, ct_buf, bleft, key, cb, ghash);
++		if (done == 0) {
++			rv = CRYPTO_FAILED;
++			goto out;
++		}
++		if (out != NULL) {
++			rv = crypto_put_output_data(ct_buf, out, done);
++			if (rv != CRYPTO_SUCCESS) {
++				goto out;
++			}
++			out->cd_offset += done;
++		}
++		ctx->gcm_processed_data_len += done;
++		datap += done;
++		bleft -= done;
++
++	}
++	/* Less than GCM_AVX_MIN_ENCRYPT_BYTES remain, operate on blocks. */
++	while (bleft > 0) {
++		if (bleft < block_size) {
++			bcopy(datap, ctx->gcm_remainder, bleft);
++			ctx->gcm_remainder_len = bleft;
++			ctx->gcm_copy_to = datap;
++			goto out;
++		}
++		/* Encrypt, hash and write out. */
++		aes_encrypt_intel(key->encr_ks.ks32, key->nr,
++		    (const uint32_t *)cb, (uint32_t *)tmp);
++
++		gcm_xor_avx(datap, tmp);
++		GHASH_AVX(ctx, tmp, block_size);
++		if (out != NULL) {
++			rv = crypto_put_output_data(tmp, out, block_size);
++			if (rv != CRYPTO_SUCCESS) {
++				goto out;
++			}
++			out->cd_offset += block_size;
++		}
++		gcm_incr_counter_block(ctx);
++		ctx->gcm_processed_data_len += block_size;
++		datap += block_size;
++		bleft -= block_size;
++	}
++out:
++	clear_fpu_regs();
++	kfpu_end();
++out_nofpu:
++	if (ct_buf != NULL) {
++		vmem_free(ct_buf, chunk_size);
++	}
++	return (rv);
++}
++
++/*
++ * Finalize the encryption: Zero fill, encrypt, hash and write out an eventual
++ * incomplete last block. Encrypt the ICB. calculate the tag and write it out.
++ */
++static int
++gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
++{
++	uint8_t *ghash = (uint8_t *)ctx->gcm_ghash;
++	uint32_t *J0 = (uint32_t *)ctx->gcm_J0;
++	uint8_t *remainder = (uint8_t *)ctx->gcm_remainder;
++	size_t rem_len = ctx->gcm_remainder_len;
++	const void *keysched = ((aes_key_t *)ctx->gcm_keysched)->encr_ks.ks32;
++	int aes_rounds = ((aes_key_t *)keysched)->nr;
++	int rv;
++
++	ASSERT(block_size == GCM_BLOCK_LEN);
++
++	if (out->cd_length < (rem_len + ctx->gcm_tag_len)) {
++		return (CRYPTO_DATA_LEN_RANGE);
++	}
++
++	kfpu_begin();
++	/* Pad last incomplete block with zeros,encrypt and hash. */
++	if (rem_len > 0) {
++		uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
++		const uint32_t *cb = (uint32_t *)ctx->gcm_cb;
++
++		aes_encrypt_intel(keysched, aes_rounds, cb, (uint32_t *)tmp);
++		bzero(remainder + rem_len, block_size - rem_len);
++		for (int i = 0; i < rem_len; i++) {
++			remainder[i] ^= tmp[i];
++		}
++		GHASH_AVX(ctx, remainder, block_size);
++		ctx->gcm_processed_data_len += rem_len;
++		/* No need to increment counter_block since it's the last one */
++	}
++	/* Finish tag. */
++	ctx->gcm_len_a_len_c[1] =
++	    htonll(CRYPTO_BYTES2BITS(ctx->gcm_processed_data_len));
++	GHASH_AVX(ctx, (const uint8_t *)ctx->gcm_len_a_len_c, block_size);
++	aes_encrypt_intel(keysched, aes_rounds, J0, J0);
++
++	gcm_xor_avx((uint8_t *)J0, ghash);
++	clear_fpu_regs();
++	kfpu_end();
++
++	/* Output remainder. */
++	if (rem_len > 0) {
++		rv = crypto_put_output_data(remainder, out, rem_len);
++		if (rv != CRYPTO_SUCCESS)
++			return (rv);
++	}
++	out->cd_offset += rem_len;
++	ctx->gcm_remainder_len = 0;
++	rv = crypto_put_output_data(ghash, out, ctx->gcm_tag_len);
++	if (rv != CRYPTO_SUCCESS)
++		return (rv);
++
++	out->cd_offset += ctx->gcm_tag_len;
++	/* FIXME: Doesn't seem to be done on the AES side. */
++	gcm_clear_ctx(ctx);
++	return (CRYPTO_SUCCESS);
++}
++
++/*
++ * Finalize decryption: We just have accumulated crypto text, so now we
++ * decrypt it here inplace.
++ */
++static int
++gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
++{
++	ASSERT3U(ctx->gcm_processed_data_len, ==, ctx->gcm_pt_buf_len);
++	ASSERT3U(block_size, ==, 16);
++
++	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
++	size_t pt_len = ctx->gcm_processed_data_len - ctx->gcm_tag_len;
++	uint8_t *datap = ctx->gcm_pt_buf;
++	const aes_key_t *key = ((aes_key_t *)ctx->gcm_keysched);
++	uint32_t *cb = (uint32_t *)ctx->gcm_cb;
++	uint64_t *ghash = ctx->gcm_ghash;
++	uint32_t *tmp = (uint32_t *)ctx->gcm_tmp;
++	int rv = CRYPTO_SUCCESS;
++	size_t bleft, done;
++
++	/*
++	 * Decrypt in chunks of gcm_avx_chunk_size, which is asserted to be
++	 * greater or equal than GCM_AVX_MIN_ENCRYPT_BYTES, and a multiple of
++	 * GCM_AVX_MIN_DECRYPT_BYTES.
++	 */
++	for (bleft = pt_len; bleft >= chunk_size; bleft -= chunk_size) {
++		kfpu_begin();
++		done = aesni_gcm_decrypt(datap, datap, chunk_size,
++		    (const void *)key, ctx->gcm_cb, ghash);
++		clear_fpu_regs();
++		kfpu_end();
++		if (done != chunk_size) {
++			return (CRYPTO_FAILED);
++		}
++		datap += done;
++	}
++	/* Decrypt remainder, which is less then chunk size, in one go. */
++	kfpu_begin();
++	if (bleft >= GCM_AVX_MIN_DECRYPT_BYTES) {
++		done = aesni_gcm_decrypt(datap, datap, bleft,
++		    (const void *)key, ctx->gcm_cb, ghash);
++		if (done == 0) {
++			clear_fpu_regs();
++			kfpu_end();
++			return (CRYPTO_FAILED);
++		}
++		datap += done;
++		bleft -= done;
++	}
++	ASSERT(bleft < GCM_AVX_MIN_DECRYPT_BYTES);
++
++	/*
++	 * Now less then GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
++	 * decrypt them block by block
++	 */
++	while (bleft > 0) {
++		/* Incomplete last block */
++		if (bleft < block_size) {
++			uint8_t *lastb = (uint8_t *)ctx->gcm_remainder;
++
++			bzero(lastb, block_size);
++			bcopy(datap, lastb, bleft);
++			/* The GCM processing */
++			GHASH_AVX(ctx, lastb, block_size);
++			aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
++			for (size_t i = 0; i < bleft; i++) {
++				datap[i] = lastb[i] ^ ((uint8_t *)tmp)[i];
++			}
++			break;
++		}
++		/* The GCM processing */
++		GHASH_AVX(ctx, datap, block_size);
++		aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
++		gcm_xor_avx((uint8_t *)tmp, datap);
++		gcm_incr_counter_block(ctx);
++
++		datap += block_size;
++		bleft -= block_size;
++	}
++	if (rv != CRYPTO_SUCCESS) {
++		clear_fpu_regs();
++		kfpu_end();
++		return (rv);
++	}
++	/* Decryption done, finish the tag. */
++	ctx->gcm_len_a_len_c[1] = htonll(CRYPTO_BYTES2BITS(pt_len));
++	GHASH_AVX(ctx, (uint8_t *)ctx->gcm_len_a_len_c, block_size);
++	aes_encrypt_intel(key->encr_ks.ks32, key->nr, (uint32_t *)ctx->gcm_J0,
++	    (uint32_t *)ctx->gcm_J0);
++
++	gcm_xor_avx((uint8_t *)ctx->gcm_J0, (uint8_t *)ghash);
++
++	/* We are done with the FPU, restore its state */
++	clear_fpu_regs();
++	kfpu_end();
++
++	/* compare the input authentication tag with what we calculated */
++	if (bcmp(&ctx->gcm_pt_buf[pt_len], ghash, ctx->gcm_tag_len)) {
++		/* They don't match */
++		return (CRYPTO_INVALID_MAC);
++	}
++	rv = crypto_put_output_data(ctx->gcm_pt_buf, out, pt_len);
++	if (rv != CRYPTO_SUCCESS) {
++		return (rv);
++	}
++	out->cd_offset += pt_len;
++	gcm_clear_ctx(ctx);
++	return (CRYPTO_SUCCESS);
++}
++
++/*
++ * Initialize the GCM params H, Htabtle and the counter block. Save the
++ * initial counter block.
++ */
++static int
++gcm_init_avx(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
++    unsigned char *auth_data, size_t auth_data_len, size_t block_size)
++{
++	uint8_t *cb = (uint8_t *)ctx->gcm_cb;
++	uint64_t *H = ctx->gcm_H;
++	const void *keysched = ((aes_key_t *)ctx->gcm_keysched)->encr_ks.ks32;
++	int aes_rounds = ((aes_key_t *)ctx->gcm_keysched)->nr;
++	uint8_t *datap = auth_data;
++	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
++	size_t bleft;
++
++	ASSERT(block_size == GCM_BLOCK_LEN);
++
++	/* Init H (encrypt zero block) and create the initial counter block. */
++	bzero(ctx->gcm_ghash, sizeof (ctx->gcm_ghash));
++	bzero(H, sizeof (ctx->gcm_H));
++	kfpu_begin();
++	aes_encrypt_intel(keysched, aes_rounds,
++	    (const uint32_t *)H, (uint32_t *)H);
++
++	gcm_init_htab_avx(ctx->gcm_Htable, H);
++
++	if (iv_len == 12) {
++		bcopy(iv, cb, 12);
++		cb[12] = 0;
++		cb[13] = 0;
++		cb[14] = 0;
++		cb[15] = 1;
++		/* We need the ICB later. */
++		bcopy(cb, ctx->gcm_J0, sizeof (ctx->gcm_J0));
++	} else {
++		/*
++		 * Most consumers use 12 byte IVs, so it's OK to use the
++		 * original routines for other IV sizes, just avoid nesting
++		 * kfpu_begin calls.
++		 */
++		clear_fpu_regs();
++		kfpu_end();
++		gcm_format_initial_blocks(iv, iv_len, ctx, block_size,
++		    aes_copy_block, aes_xor_block);
++		kfpu_begin();
++	}
++
++	/* Openssl post increments the counter, adjust for that. */
++	gcm_incr_counter_block(ctx);
++
++	/* Ghash AAD in chunk_size blocks. */
++	for (bleft = auth_data_len; bleft >= chunk_size; bleft -= chunk_size) {
++		GHASH_AVX(ctx, datap, chunk_size);
++		datap += chunk_size;
++		clear_fpu_regs();
++		kfpu_end();
++		kfpu_begin();
++	}
++	/* Ghash the remainder and handle possible incomplete GCM block. */
++	if (bleft > 0) {
++		size_t incomp = bleft % block_size;
++
++		bleft -= incomp;
++		if (bleft > 0) {
++			GHASH_AVX(ctx, datap, bleft);
++			datap += bleft;
++		}
++		if (incomp > 0) {
++			/* Zero pad and hash incomplete last block */
++			uint8_t *authp = (uint8_t *)ctx->gcm_tmp;
++
++			bzero(authp, block_size);
++			bcopy(datap, authp, incomp);
++			GHASH_AVX(ctx, authp, block_size);
++		}
++	}
++	clear_fpu_regs();
++	kfpu_end();
++	return (CRYPTO_SUCCESS);
++}
++
++#if defined(_KERNEL)
++static int
++icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
++{
++	unsigned long val;
++	char val_rounded[16];
++	int error = 0;
++
++	error = kstrtoul(buf, 0, &val);
++	if (error)
++		return (error);
++
++	val = (val / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
++
++	if (val < GCM_AVX_MIN_ENCRYPT_BYTES || val > GCM_AVX_MAX_CHUNK_SIZE)
++		return (-EINVAL);
++
++	snprintf(val_rounded, 16, "%u", (uint32_t)val);
++	error = param_set_uint(val_rounded, kp);
++	return (error);
++}
++
++module_param_call(icp_gcm_avx_chunk_size, icp_gcm_avx_set_chunk_size,
++    param_get_uint, &gcm_avx_chunk_size, 0644);
++
++MODULE_PARM_DESC(icp_gcm_avx_chunk_size,
++	"How many bytes to process while owning the FPU");
++
++#endif /* defined(__KERNEL) */
++#endif /* ifdef CAN_USE_GCM_ASM */
+diff --git a/module/icp/asm-x86_64/modes/aesni-gcm-x86_64.S b/module/icp/asm-x86_64/modes/aesni-gcm-x86_64.S
+new file mode 100644
+index 00000000000..1e7b19a3c64
+--- /dev/null
++++ b/module/icp/asm-x86_64/modes/aesni-gcm-x86_64.S
+@@ -0,0 +1,892 @@
++# Copyright 2013-2016 The OpenSSL Project Authors. All Rights Reserved.
++#
++# Licensed under the Apache License 2.0 (the "License").  You may not use
++# this file except in compliance with the License.  You can obtain a copy
++# in the file LICENSE in the source distribution or at
++# https://www.openssl.org/source/license.html
++
++#
++# ====================================================================
++# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
++# project. The module is, however, dual licensed under OpenSSL and
++# CRYPTOGAMS licenses depending on where you obtain it. For further
++# details see http://www.openssl.org/~appro/cryptogams/.
++# ====================================================================
++#
++#
++# AES-NI-CTR+GHASH stitch.
++#
++# February 2013
++#
++# OpenSSL GCM implementation is organized in such way that its
++# performance is rather close to the sum of its streamed components,
++# in the context parallelized AES-NI CTR and modulo-scheduled
++# PCLMULQDQ-enabled GHASH. Unfortunately, as no stitch implementation
++# was observed to perform significantly better than the sum of the
++# components on contemporary CPUs, the effort was deemed impossible to
++# justify. This module is based on combination of Intel submissions,
++# [1] and [2], with MOVBE twist suggested by Ilya Albrekht and Max
++# Locktyukhin of Intel Corp. who verified that it reduces shuffles
++# pressure with notable relative improvement, achieving 1.0 cycle per
++# byte processed with 128-bit key on Haswell processor, 0.74 - on
++# Broadwell, 0.63 - on Skylake... [Mentioned results are raw profiled
++# measurements for favourable packet size, one divisible by 96.
++# Applications using the EVP interface will observe a few percent
++# worse performance.]
++#
++# Knights Landing processes 1 byte in 1.25 cycles (measured with EVP).
++#
++# [1] http://rt.openssl.org/Ticket/Display.html?id=2900&user=guest&pass=guest
++# [2] http://www.intel.com/content/dam/www/public/us/en/documents/software-support/enabling-high-performance-gcm.pdf
++
++# Generated once from
++# https://github.com/openssl/openssl/blob/5ffc3324/crypto/modes/asm/aesni-gcm-x86_64.pl
++# and modified for ICP. Modification are kept at a bare minimum to ease later
++# upstream merges.
++
++#if defined(__x86_64__) && defined(HAVE_AVX) && \
++    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
++
++.text
++
++.type	_aesni_ctr32_ghash_6x,@function
++.align	32
++_aesni_ctr32_ghash_6x:
++	vmovdqu	32(%r11),%xmm2
++	subq	$6,%rdx
++	vpxor	%xmm4,%xmm4,%xmm4
++	vmovdqu	0-128(%rcx),%xmm15
++	vpaddb	%xmm2,%xmm1,%xmm10
++	vpaddb	%xmm2,%xmm10,%xmm11
++	vpaddb	%xmm2,%xmm11,%xmm12
++	vpaddb	%xmm2,%xmm12,%xmm13
++	vpaddb	%xmm2,%xmm13,%xmm14
++	vpxor	%xmm15,%xmm1,%xmm9
++	vmovdqu	%xmm4,16+8(%rsp)
++	jmp	.Loop6x
++
++.align	32
++.Loop6x:
++	addl	$100663296,%ebx
++	jc	.Lhandle_ctr32
++	vmovdqu	0-32(%r9),%xmm3
++	vpaddb	%xmm2,%xmm14,%xmm1
++	vpxor	%xmm15,%xmm10,%xmm10
++	vpxor	%xmm15,%xmm11,%xmm11
++
++.Lresume_ctr32:
++	vmovdqu	%xmm1,(%r8)
++	vpclmulqdq	$0x10,%xmm3,%xmm7,%xmm5
++	vpxor	%xmm15,%xmm12,%xmm12
++	vmovups	16-128(%rcx),%xmm2
++	vpclmulqdq	$0x01,%xmm3,%xmm7,%xmm6
++	xorq	%r12,%r12
++	cmpq	%r14,%r15
++
++	vaesenc	%xmm2,%xmm9,%xmm9
++	vmovdqu	48+8(%rsp),%xmm0
++	vpxor	%xmm15,%xmm13,%xmm13
++	vpclmulqdq	$0x00,%xmm3,%xmm7,%xmm1
++	vaesenc	%xmm2,%xmm10,%xmm10
++	vpxor	%xmm15,%xmm14,%xmm14
++	setnc	%r12b
++	vpclmulqdq	$0x11,%xmm3,%xmm7,%xmm7
++	vaesenc	%xmm2,%xmm11,%xmm11
++	vmovdqu	16-32(%r9),%xmm3
++	negq	%r12
++	vaesenc	%xmm2,%xmm12,%xmm12
++	vpxor	%xmm5,%xmm6,%xmm6
++	vpclmulqdq	$0x00,%xmm3,%xmm0,%xmm5
++	vpxor	%xmm4,%xmm8,%xmm8
++	vaesenc	%xmm2,%xmm13,%xmm13
++	vpxor	%xmm5,%xmm1,%xmm4
++	andq	$0x60,%r12
++	vmovups	32-128(%rcx),%xmm15
++	vpclmulqdq	$0x10,%xmm3,%xmm0,%xmm1
++	vaesenc	%xmm2,%xmm14,%xmm14
++
++	vpclmulqdq	$0x01,%xmm3,%xmm0,%xmm2
++	leaq	(%r14,%r12,1),%r14
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	16+8(%rsp),%xmm8,%xmm8
++	vpclmulqdq	$0x11,%xmm3,%xmm0,%xmm3
++	vmovdqu	64+8(%rsp),%xmm0
++	vaesenc	%xmm15,%xmm10,%xmm10
++	movbeq	88(%r14),%r13
++	vaesenc	%xmm15,%xmm11,%xmm11
++	movbeq	80(%r14),%r12
++	vaesenc	%xmm15,%xmm12,%xmm12
++	movq	%r13,32+8(%rsp)
++	vaesenc	%xmm15,%xmm13,%xmm13
++	movq	%r12,40+8(%rsp)
++	vmovdqu	48-32(%r9),%xmm5
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vmovups	48-128(%rcx),%xmm15
++	vpxor	%xmm1,%xmm6,%xmm6
++	vpclmulqdq	$0x00,%xmm5,%xmm0,%xmm1
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	%xmm2,%xmm6,%xmm6
++	vpclmulqdq	$0x10,%xmm5,%xmm0,%xmm2
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vpxor	%xmm3,%xmm7,%xmm7
++	vpclmulqdq	$0x01,%xmm5,%xmm0,%xmm3
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vpclmulqdq	$0x11,%xmm5,%xmm0,%xmm5
++	vmovdqu	80+8(%rsp),%xmm0
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vpxor	%xmm1,%xmm4,%xmm4
++	vmovdqu	64-32(%r9),%xmm1
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vmovups	64-128(%rcx),%xmm15
++	vpxor	%xmm2,%xmm6,%xmm6
++	vpclmulqdq	$0x00,%xmm1,%xmm0,%xmm2
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	%xmm3,%xmm6,%xmm6
++	vpclmulqdq	$0x10,%xmm1,%xmm0,%xmm3
++	vaesenc	%xmm15,%xmm10,%xmm10
++	movbeq	72(%r14),%r13
++	vpxor	%xmm5,%xmm7,%xmm7
++	vpclmulqdq	$0x01,%xmm1,%xmm0,%xmm5
++	vaesenc	%xmm15,%xmm11,%xmm11
++	movbeq	64(%r14),%r12
++	vpclmulqdq	$0x11,%xmm1,%xmm0,%xmm1
++	vmovdqu	96+8(%rsp),%xmm0
++	vaesenc	%xmm15,%xmm12,%xmm12
++	movq	%r13,48+8(%rsp)
++	vaesenc	%xmm15,%xmm13,%xmm13
++	movq	%r12,56+8(%rsp)
++	vpxor	%xmm2,%xmm4,%xmm4
++	vmovdqu	96-32(%r9),%xmm2
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vmovups	80-128(%rcx),%xmm15
++	vpxor	%xmm3,%xmm6,%xmm6
++	vpclmulqdq	$0x00,%xmm2,%xmm0,%xmm3
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	%xmm5,%xmm6,%xmm6
++	vpclmulqdq	$0x10,%xmm2,%xmm0,%xmm5
++	vaesenc	%xmm15,%xmm10,%xmm10
++	movbeq	56(%r14),%r13
++	vpxor	%xmm1,%xmm7,%xmm7
++	vpclmulqdq	$0x01,%xmm2,%xmm0,%xmm1
++	vpxor	112+8(%rsp),%xmm8,%xmm8
++	vaesenc	%xmm15,%xmm11,%xmm11
++	movbeq	48(%r14),%r12
++	vpclmulqdq	$0x11,%xmm2,%xmm0,%xmm2
++	vaesenc	%xmm15,%xmm12,%xmm12
++	movq	%r13,64+8(%rsp)
++	vaesenc	%xmm15,%xmm13,%xmm13
++	movq	%r12,72+8(%rsp)
++	vpxor	%xmm3,%xmm4,%xmm4
++	vmovdqu	112-32(%r9),%xmm3
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vmovups	96-128(%rcx),%xmm15
++	vpxor	%xmm5,%xmm6,%xmm6
++	vpclmulqdq	$0x10,%xmm3,%xmm8,%xmm5
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	%xmm1,%xmm6,%xmm6
++	vpclmulqdq	$0x01,%xmm3,%xmm8,%xmm1
++	vaesenc	%xmm15,%xmm10,%xmm10
++	movbeq	40(%r14),%r13
++	vpxor	%xmm2,%xmm7,%xmm7
++	vpclmulqdq	$0x00,%xmm3,%xmm8,%xmm2
++	vaesenc	%xmm15,%xmm11,%xmm11
++	movbeq	32(%r14),%r12
++	vpclmulqdq	$0x11,%xmm3,%xmm8,%xmm8
++	vaesenc	%xmm15,%xmm12,%xmm12
++	movq	%r13,80+8(%rsp)
++	vaesenc	%xmm15,%xmm13,%xmm13
++	movq	%r12,88+8(%rsp)
++	vpxor	%xmm5,%xmm6,%xmm6
++	vaesenc	%xmm15,%xmm14,%xmm14
++	vpxor	%xmm1,%xmm6,%xmm6
++
++	vmovups	112-128(%rcx),%xmm15
++	vpslldq	$8,%xmm6,%xmm5
++	vpxor	%xmm2,%xmm4,%xmm4
++	vmovdqu	16(%r11),%xmm3
++
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	%xmm8,%xmm7,%xmm7
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vpxor	%xmm5,%xmm4,%xmm4
++	movbeq	24(%r14),%r13
++	vaesenc	%xmm15,%xmm11,%xmm11
++	movbeq	16(%r14),%r12
++	vpalignr	$8,%xmm4,%xmm4,%xmm0
++	vpclmulqdq	$0x10,%xmm3,%xmm4,%xmm4
++	movq	%r13,96+8(%rsp)
++	vaesenc	%xmm15,%xmm12,%xmm12
++	movq	%r12,104+8(%rsp)
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vmovups	128-128(%rcx),%xmm1
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vaesenc	%xmm1,%xmm9,%xmm9
++	vmovups	144-128(%rcx),%xmm15
++	vaesenc	%xmm1,%xmm10,%xmm10
++	vpsrldq	$8,%xmm6,%xmm6
++	vaesenc	%xmm1,%xmm11,%xmm11
++	vpxor	%xmm6,%xmm7,%xmm7
++	vaesenc	%xmm1,%xmm12,%xmm12
++	vpxor	%xmm0,%xmm4,%xmm4
++	movbeq	8(%r14),%r13
++	vaesenc	%xmm1,%xmm13,%xmm13
++	movbeq	0(%r14),%r12
++	vaesenc	%xmm1,%xmm14,%xmm14
++	vmovups	160-128(%rcx),%xmm1
++	cmpl	$12,%ebp	// ICP uses 10,12,14 not 9,11,13 for rounds.
++	jb	.Lenc_tail
++
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vaesenc	%xmm1,%xmm9,%xmm9
++	vaesenc	%xmm1,%xmm10,%xmm10
++	vaesenc	%xmm1,%xmm11,%xmm11
++	vaesenc	%xmm1,%xmm12,%xmm12
++	vaesenc	%xmm1,%xmm13,%xmm13
++	vmovups	176-128(%rcx),%xmm15
++	vaesenc	%xmm1,%xmm14,%xmm14
++	vmovups	192-128(%rcx),%xmm1
++	cmpl	$14,%ebp	// ICP does not zero key schedule.
++	jb	.Lenc_tail
++
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vaesenc	%xmm15,%xmm14,%xmm14
++
++	vaesenc	%xmm1,%xmm9,%xmm9
++	vaesenc	%xmm1,%xmm10,%xmm10
++	vaesenc	%xmm1,%xmm11,%xmm11
++	vaesenc	%xmm1,%xmm12,%xmm12
++	vaesenc	%xmm1,%xmm13,%xmm13
++	vmovups	208-128(%rcx),%xmm15
++	vaesenc	%xmm1,%xmm14,%xmm14
++	vmovups	224-128(%rcx),%xmm1
++	jmp	.Lenc_tail
++
++.align	32
++.Lhandle_ctr32:
++	vmovdqu	(%r11),%xmm0
++	vpshufb	%xmm0,%xmm1,%xmm6
++	vmovdqu	48(%r11),%xmm5
++	vpaddd	64(%r11),%xmm6,%xmm10
++	vpaddd	%xmm5,%xmm6,%xmm11
++	vmovdqu	0-32(%r9),%xmm3
++	vpaddd	%xmm5,%xmm10,%xmm12
++	vpshufb	%xmm0,%xmm10,%xmm10
++	vpaddd	%xmm5,%xmm11,%xmm13
++	vpshufb	%xmm0,%xmm11,%xmm11
++	vpxor	%xmm15,%xmm10,%xmm10
++	vpaddd	%xmm5,%xmm12,%xmm14
++	vpshufb	%xmm0,%xmm12,%xmm12
++	vpxor	%xmm15,%xmm11,%xmm11
++	vpaddd	%xmm5,%xmm13,%xmm1
++	vpshufb	%xmm0,%xmm13,%xmm13
++	vpshufb	%xmm0,%xmm14,%xmm14
++	vpshufb	%xmm0,%xmm1,%xmm1
++	jmp	.Lresume_ctr32
++
++.align	32
++.Lenc_tail:
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vmovdqu	%xmm7,16+8(%rsp)
++	vpalignr	$8,%xmm4,%xmm4,%xmm8
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vpclmulqdq	$0x10,%xmm3,%xmm4,%xmm4
++	vpxor	0(%rdi),%xmm1,%xmm2
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vpxor	16(%rdi),%xmm1,%xmm0
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vpxor	32(%rdi),%xmm1,%xmm5
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vpxor	48(%rdi),%xmm1,%xmm6
++	vaesenc	%xmm15,%xmm14,%xmm14
++	vpxor	64(%rdi),%xmm1,%xmm7
++	vpxor	80(%rdi),%xmm1,%xmm3
++	vmovdqu	(%r8),%xmm1
++
++	vaesenclast	%xmm2,%xmm9,%xmm9
++	vmovdqu	32(%r11),%xmm2
++	vaesenclast	%xmm0,%xmm10,%xmm10
++	vpaddb	%xmm2,%xmm1,%xmm0
++	movq	%r13,112+8(%rsp)
++	leaq	96(%rdi),%rdi
++	vaesenclast	%xmm5,%xmm11,%xmm11
++	vpaddb	%xmm2,%xmm0,%xmm5
++	movq	%r12,120+8(%rsp)
++	leaq	96(%rsi),%rsi
++	vmovdqu	0-128(%rcx),%xmm15
++	vaesenclast	%xmm6,%xmm12,%xmm12
++	vpaddb	%xmm2,%xmm5,%xmm6
++	vaesenclast	%xmm7,%xmm13,%xmm13
++	vpaddb	%xmm2,%xmm6,%xmm7
++	vaesenclast	%xmm3,%xmm14,%xmm14
++	vpaddb	%xmm2,%xmm7,%xmm3
++
++	addq	$0x60,%r10
++	subq	$0x6,%rdx
++	jc	.L6x_done
++
++	vmovups	%xmm9,-96(%rsi)
++	vpxor	%xmm15,%xmm1,%xmm9
++	vmovups	%xmm10,-80(%rsi)
++	vmovdqa	%xmm0,%xmm10
++	vmovups	%xmm11,-64(%rsi)
++	vmovdqa	%xmm5,%xmm11
++	vmovups	%xmm12,-48(%rsi)
++	vmovdqa	%xmm6,%xmm12
++	vmovups	%xmm13,-32(%rsi)
++	vmovdqa	%xmm7,%xmm13
++	vmovups	%xmm14,-16(%rsi)
++	vmovdqa	%xmm3,%xmm14
++	vmovdqu	32+8(%rsp),%xmm7
++	jmp	.Loop6x
++
++.L6x_done:
++	vpxor	16+8(%rsp),%xmm8,%xmm8
++	vpxor	%xmm4,%xmm8,%xmm8
++
++	.byte	0xf3,0xc3
++.size	_aesni_ctr32_ghash_6x,.-_aesni_ctr32_ghash_6x
++.globl	aesni_gcm_decrypt
++.type	aesni_gcm_decrypt,@function
++.align	32
++aesni_gcm_decrypt:
++.cfi_startproc
++	xorq	%r10,%r10
++	cmpq	$0x60,%rdx
++	jb	.Lgcm_dec_abort
++
++	leaq	(%rsp),%rax
++.cfi_def_cfa_register	%rax
++	pushq	%rbx
++.cfi_offset	%rbx,-16
++	pushq	%rbp
++.cfi_offset	%rbp,-24
++	pushq	%r12
++.cfi_offset	%r12,-32
++	pushq	%r13
++.cfi_offset	%r13,-40
++	pushq	%r14
++.cfi_offset	%r14,-48
++	pushq	%r15
++.cfi_offset	%r15,-56
++	vzeroupper
++
++	vmovdqu	(%r8),%xmm1
++	addq	$-128,%rsp
++	movl	12(%r8),%ebx
++	leaq	.Lbswap_mask(%rip),%r11
++	leaq	-128(%rcx),%r14
++	movq	$0xf80,%r15
++	vmovdqu	(%r9),%xmm8
++	andq	$-128,%rsp
++	vmovdqu	(%r11),%xmm0
++	leaq	128(%rcx),%rcx
++	leaq	32+32(%r9),%r9
++	movl	504-128(%rcx),%ebp	// ICP has a larger offset for rounds.
++	vpshufb	%xmm0,%xmm8,%xmm8
++
++	andq	%r15,%r14
++	andq	%rsp,%r15
++	subq	%r14,%r15
++	jc	.Ldec_no_key_aliasing
++	cmpq	$768,%r15
++	jnc	.Ldec_no_key_aliasing
++	subq	%r15,%rsp
++.Ldec_no_key_aliasing:
++
++	vmovdqu	80(%rdi),%xmm7
++	leaq	(%rdi),%r14
++	vmovdqu	64(%rdi),%xmm4
++	leaq	-192(%rdi,%rdx,1),%r15
++	vmovdqu	48(%rdi),%xmm5
++	shrq	$4,%rdx
++	xorq	%r10,%r10
++	vmovdqu	32(%rdi),%xmm6
++	vpshufb	%xmm0,%xmm7,%xmm7
++	vmovdqu	16(%rdi),%xmm2
++	vpshufb	%xmm0,%xmm4,%xmm4
++	vmovdqu	(%rdi),%xmm3
++	vpshufb	%xmm0,%xmm5,%xmm5
++	vmovdqu	%xmm4,48(%rsp)
++	vpshufb	%xmm0,%xmm6,%xmm6
++	vmovdqu	%xmm5,64(%rsp)
++	vpshufb	%xmm0,%xmm2,%xmm2
++	vmovdqu	%xmm6,80(%rsp)
++	vpshufb	%xmm0,%xmm3,%xmm3
++	vmovdqu	%xmm2,96(%rsp)
++	vmovdqu	%xmm3,112(%rsp)
++
++	call	_aesni_ctr32_ghash_6x
++
++	vmovups	%xmm9,-96(%rsi)
++	vmovups	%xmm10,-80(%rsi)
++	vmovups	%xmm11,-64(%rsi)
++	vmovups	%xmm12,-48(%rsi)
++	vmovups	%xmm13,-32(%rsi)
++	vmovups	%xmm14,-16(%rsi)
++
++	vpshufb	(%r11),%xmm8,%xmm8
++	vmovdqu	%xmm8,-64(%r9)
++
++	vzeroupper
++	movq	-48(%rax),%r15
++.cfi_restore	%r15
++	movq	-40(%rax),%r14
++.cfi_restore	%r14
++	movq	-32(%rax),%r13
++.cfi_restore	%r13
++	movq	-24(%rax),%r12
++.cfi_restore	%r12
++	movq	-16(%rax),%rbp
++.cfi_restore	%rbp
++	movq	-8(%rax),%rbx
++.cfi_restore	%rbx
++	leaq	(%rax),%rsp
++.cfi_def_cfa_register	%rsp
++.Lgcm_dec_abort:
++	movq	%r10,%rax
++	.byte	0xf3,0xc3
++.cfi_endproc
++.size	aesni_gcm_decrypt,.-aesni_gcm_decrypt
++.type	_aesni_ctr32_6x,@function
++.align	32
++_aesni_ctr32_6x:
++	vmovdqu	0-128(%rcx),%xmm4
++	vmovdqu	32(%r11),%xmm2
++	leaq	-2(%rbp),%r13	// ICP uses 10,12,14 not 9,11,13 for rounds.
++	vmovups	16-128(%rcx),%xmm15
++	leaq	32-128(%rcx),%r12
++	vpxor	%xmm4,%xmm1,%xmm9
++	addl	$100663296,%ebx
++	jc	.Lhandle_ctr32_2
++	vpaddb	%xmm2,%xmm1,%xmm10
++	vpaddb	%xmm2,%xmm10,%xmm11
++	vpxor	%xmm4,%xmm10,%xmm10
++	vpaddb	%xmm2,%xmm11,%xmm12
++	vpxor	%xmm4,%xmm11,%xmm11
++	vpaddb	%xmm2,%xmm12,%xmm13
++	vpxor	%xmm4,%xmm12,%xmm12
++	vpaddb	%xmm2,%xmm13,%xmm14
++	vpxor	%xmm4,%xmm13,%xmm13
++	vpaddb	%xmm2,%xmm14,%xmm1
++	vpxor	%xmm4,%xmm14,%xmm14
++	jmp	.Loop_ctr32
++
++.align	16
++.Loop_ctr32:
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vaesenc	%xmm15,%xmm14,%xmm14
++	vmovups	(%r12),%xmm15
++	leaq	16(%r12),%r12
++	decl	%r13d
++	jnz	.Loop_ctr32
++
++	vmovdqu	(%r12),%xmm3
++	vaesenc	%xmm15,%xmm9,%xmm9
++	vpxor	0(%rdi),%xmm3,%xmm4
++	vaesenc	%xmm15,%xmm10,%xmm10
++	vpxor	16(%rdi),%xmm3,%xmm5
++	vaesenc	%xmm15,%xmm11,%xmm11
++	vpxor	32(%rdi),%xmm3,%xmm6
++	vaesenc	%xmm15,%xmm12,%xmm12
++	vpxor	48(%rdi),%xmm3,%xmm8
++	vaesenc	%xmm15,%xmm13,%xmm13
++	vpxor	64(%rdi),%xmm3,%xmm2
++	vaesenc	%xmm15,%xmm14,%xmm14
++	vpxor	80(%rdi),%xmm3,%xmm3
++	leaq	96(%rdi),%rdi
++
++	vaesenclast	%xmm4,%xmm9,%xmm9
++	vaesenclast	%xmm5,%xmm10,%xmm10
++	vaesenclast	%xmm6,%xmm11,%xmm11
++	vaesenclast	%xmm8,%xmm12,%xmm12
++	vaesenclast	%xmm2,%xmm13,%xmm13
++	vaesenclast	%xmm3,%xmm14,%xmm14
++	vmovups	%xmm9,0(%rsi)
++	vmovups	%xmm10,16(%rsi)
++	vmovups	%xmm11,32(%rsi)
++	vmovups	%xmm12,48(%rsi)
++	vmovups	%xmm13,64(%rsi)
++	vmovups	%xmm14,80(%rsi)
++	leaq	96(%rsi),%rsi
++
++	.byte	0xf3,0xc3
++.align	32
++.Lhandle_ctr32_2:
++	vpshufb	%xmm0,%xmm1,%xmm6
++	vmovdqu	48(%r11),%xmm5
++	vpaddd	64(%r11),%xmm6,%xmm10
++	vpaddd	%xmm5,%xmm6,%xmm11
++	vpaddd	%xmm5,%xmm10,%xmm12
++	vpshufb	%xmm0,%xmm10,%xmm10
++	vpaddd	%xmm5,%xmm11,%xmm13
++	vpshufb	%xmm0,%xmm11,%xmm11
++	vpxor	%xmm4,%xmm10,%xmm10
++	vpaddd	%xmm5,%xmm12,%xmm14
++	vpshufb	%xmm0,%xmm12,%xmm12
++	vpxor	%xmm4,%xmm11,%xmm11
++	vpaddd	%xmm5,%xmm13,%xmm1
++	vpshufb	%xmm0,%xmm13,%xmm13
++	vpxor	%xmm4,%xmm12,%xmm12
++	vpshufb	%xmm0,%xmm14,%xmm14
++	vpxor	%xmm4,%xmm13,%xmm13
++	vpshufb	%xmm0,%xmm1,%xmm1
++	vpxor	%xmm4,%xmm14,%xmm14
++	jmp	.Loop_ctr32
++.size	_aesni_ctr32_6x,.-_aesni_ctr32_6x
++
++.globl	aesni_gcm_encrypt
++.type	aesni_gcm_encrypt,@function
++.align	32
++aesni_gcm_encrypt:
++.cfi_startproc
++	xorq	%r10,%r10
++	cmpq	$288,%rdx
++	jb	.Lgcm_enc_abort
++
++	leaq	(%rsp),%rax
++.cfi_def_cfa_register	%rax
++	pushq	%rbx
++.cfi_offset	%rbx,-16
++	pushq	%rbp
++.cfi_offset	%rbp,-24
++	pushq	%r12
++.cfi_offset	%r12,-32
++	pushq	%r13
++.cfi_offset	%r13,-40
++	pushq	%r14
++.cfi_offset	%r14,-48
++	pushq	%r15
++.cfi_offset	%r15,-56
++	vzeroupper
++
++	vmovdqu	(%r8),%xmm1
++	addq	$-128,%rsp
++	movl	12(%r8),%ebx
++	leaq	.Lbswap_mask(%rip),%r11
++	leaq	-128(%rcx),%r14
++	movq	$0xf80,%r15
++	leaq	128(%rcx),%rcx
++	vmovdqu	(%r11),%xmm0
++	andq	$-128,%rsp
++	movl	504-128(%rcx),%ebp	// ICP has an larger offset for rounds.
++
++	andq	%r15,%r14
++	andq	%rsp,%r15
++	subq	%r14,%r15
++	jc	.Lenc_no_key_aliasing
++	cmpq	$768,%r15
++	jnc	.Lenc_no_key_aliasing
++	subq	%r15,%rsp
++.Lenc_no_key_aliasing:
++
++	leaq	(%rsi),%r14
++	leaq	-192(%rsi,%rdx,1),%r15
++	shrq	$4,%rdx
++
++	call	_aesni_ctr32_6x
++	vpshufb	%xmm0,%xmm9,%xmm8
++	vpshufb	%xmm0,%xmm10,%xmm2
++	vmovdqu	%xmm8,112(%rsp)
++	vpshufb	%xmm0,%xmm11,%xmm4
++	vmovdqu	%xmm2,96(%rsp)
++	vpshufb	%xmm0,%xmm12,%xmm5
++	vmovdqu	%xmm4,80(%rsp)
++	vpshufb	%xmm0,%xmm13,%xmm6
++	vmovdqu	%xmm5,64(%rsp)
++	vpshufb	%xmm0,%xmm14,%xmm7
++	vmovdqu	%xmm6,48(%rsp)
++
++	call	_aesni_ctr32_6x
++
++	vmovdqu	(%r9),%xmm8
++	leaq	32+32(%r9),%r9
++	subq	$12,%rdx
++	movq	$192,%r10
++	vpshufb	%xmm0,%xmm8,%xmm8
++
++	call	_aesni_ctr32_ghash_6x
++	vmovdqu	32(%rsp),%xmm7
++	vmovdqu	(%r11),%xmm0
++	vmovdqu	0-32(%r9),%xmm3
++	vpunpckhqdq	%xmm7,%xmm7,%xmm1
++	vmovdqu	32-32(%r9),%xmm15
++	vmovups	%xmm9,-96(%rsi)
++	vpshufb	%xmm0,%xmm9,%xmm9
++	vpxor	%xmm7,%xmm1,%xmm1
++	vmovups	%xmm10,-80(%rsi)
++	vpshufb	%xmm0,%xmm10,%xmm10
++	vmovups	%xmm11,-64(%rsi)
++	vpshufb	%xmm0,%xmm11,%xmm11
++	vmovups	%xmm12,-48(%rsi)
++	vpshufb	%xmm0,%xmm12,%xmm12
++	vmovups	%xmm13,-32(%rsi)
++	vpshufb	%xmm0,%xmm13,%xmm13
++	vmovups	%xmm14,-16(%rsi)
++	vpshufb	%xmm0,%xmm14,%xmm14
++	vmovdqu	%xmm9,16(%rsp)
++	vmovdqu	48(%rsp),%xmm6
++	vmovdqu	16-32(%r9),%xmm0
++	vpunpckhqdq	%xmm6,%xmm6,%xmm2
++	vpclmulqdq	$0x00,%xmm3,%xmm7,%xmm5
++	vpxor	%xmm6,%xmm2,%xmm2
++	vpclmulqdq	$0x11,%xmm3,%xmm7,%xmm7
++	vpclmulqdq	$0x00,%xmm15,%xmm1,%xmm1
++
++	vmovdqu	64(%rsp),%xmm9
++	vpclmulqdq	$0x00,%xmm0,%xmm6,%xmm4
++	vmovdqu	48-32(%r9),%xmm3
++	vpxor	%xmm5,%xmm4,%xmm4
++	vpunpckhqdq	%xmm9,%xmm9,%xmm5
++	vpclmulqdq	$0x11,%xmm0,%xmm6,%xmm6
++	vpxor	%xmm9,%xmm5,%xmm5
++	vpxor	%xmm7,%xmm6,%xmm6
++	vpclmulqdq	$0x10,%xmm15,%xmm2,%xmm2
++	vmovdqu	80-32(%r9),%xmm15
++	vpxor	%xmm1,%xmm2,%xmm2
++
++	vmovdqu	80(%rsp),%xmm1
++	vpclmulqdq	$0x00,%xmm3,%xmm9,%xmm7
++	vmovdqu	64-32(%r9),%xmm0
++	vpxor	%xmm4,%xmm7,%xmm7
++	vpunpckhqdq	%xmm1,%xmm1,%xmm4
++	vpclmulqdq	$0x11,%xmm3,%xmm9,%xmm9
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpxor	%xmm6,%xmm9,%xmm9
++	vpclmulqdq	$0x00,%xmm15,%xmm5,%xmm5
++	vpxor	%xmm2,%xmm5,%xmm5
++
++	vmovdqu	96(%rsp),%xmm2
++	vpclmulqdq	$0x00,%xmm0,%xmm1,%xmm6
++	vmovdqu	96-32(%r9),%xmm3
++	vpxor	%xmm7,%xmm6,%xmm6
++	vpunpckhqdq	%xmm2,%xmm2,%xmm7
++	vpclmulqdq	$0x11,%xmm0,%xmm1,%xmm1
++	vpxor	%xmm2,%xmm7,%xmm7
++	vpxor	%xmm9,%xmm1,%xmm1
++	vpclmulqdq	$0x10,%xmm15,%xmm4,%xmm4
++	vmovdqu	128-32(%r9),%xmm15
++	vpxor	%xmm5,%xmm4,%xmm4
++
++	vpxor	112(%rsp),%xmm8,%xmm8
++	vpclmulqdq	$0x00,%xmm3,%xmm2,%xmm5
++	vmovdqu	112-32(%r9),%xmm0
++	vpunpckhqdq	%xmm8,%xmm8,%xmm9
++	vpxor	%xmm6,%xmm5,%xmm5
++	vpclmulqdq	$0x11,%xmm3,%xmm2,%xmm2
++	vpxor	%xmm8,%xmm9,%xmm9
++	vpxor	%xmm1,%xmm2,%xmm2
++	vpclmulqdq	$0x00,%xmm15,%xmm7,%xmm7
++	vpxor	%xmm4,%xmm7,%xmm4
++
++	vpclmulqdq	$0x00,%xmm0,%xmm8,%xmm6
++	vmovdqu	0-32(%r9),%xmm3
++	vpunpckhqdq	%xmm14,%xmm14,%xmm1
++	vpclmulqdq	$0x11,%xmm0,%xmm8,%xmm8
++	vpxor	%xmm14,%xmm1,%xmm1
++	vpxor	%xmm5,%xmm6,%xmm5
++	vpclmulqdq	$0x10,%xmm15,%xmm9,%xmm9
++	vmovdqu	32-32(%r9),%xmm15
++	vpxor	%xmm2,%xmm8,%xmm7
++	vpxor	%xmm4,%xmm9,%xmm6
++
++	vmovdqu	16-32(%r9),%xmm0
++	vpxor	%xmm5,%xmm7,%xmm9
++	vpclmulqdq	$0x00,%xmm3,%xmm14,%xmm4
++	vpxor	%xmm9,%xmm6,%xmm6
++	vpunpckhqdq	%xmm13,%xmm13,%xmm2
++	vpclmulqdq	$0x11,%xmm3,%xmm14,%xmm14
++	vpxor	%xmm13,%xmm2,%xmm2
++	vpslldq	$8,%xmm6,%xmm9
++	vpclmulqdq	$0x00,%xmm15,%xmm1,%xmm1
++	vpxor	%xmm9,%xmm5,%xmm8
++	vpsrldq	$8,%xmm6,%xmm6
++	vpxor	%xmm6,%xmm7,%xmm7
++
++	vpclmulqdq	$0x00,%xmm0,%xmm13,%xmm5
++	vmovdqu	48-32(%r9),%xmm3
++	vpxor	%xmm4,%xmm5,%xmm5
++	vpunpckhqdq	%xmm12,%xmm12,%xmm9
++	vpclmulqdq	$0x11,%xmm0,%xmm13,%xmm13
++	vpxor	%xmm12,%xmm9,%xmm9
++	vpxor	%xmm14,%xmm13,%xmm13
++	vpalignr	$8,%xmm8,%xmm8,%xmm14
++	vpclmulqdq	$0x10,%xmm15,%xmm2,%xmm2
++	vmovdqu	80-32(%r9),%xmm15
++	vpxor	%xmm1,%xmm2,%xmm2
++
++	vpclmulqdq	$0x00,%xmm3,%xmm12,%xmm4
++	vmovdqu	64-32(%r9),%xmm0
++	vpxor	%xmm5,%xmm4,%xmm4
++	vpunpckhqdq	%xmm11,%xmm11,%xmm1
++	vpclmulqdq	$0x11,%xmm3,%xmm12,%xmm12
++	vpxor	%xmm11,%xmm1,%xmm1
++	vpxor	%xmm13,%xmm12,%xmm12
++	vxorps	16(%rsp),%xmm7,%xmm7
++	vpclmulqdq	$0x00,%xmm15,%xmm9,%xmm9
++	vpxor	%xmm2,%xmm9,%xmm9
++
++	vpclmulqdq	$0x10,16(%r11),%xmm8,%xmm8
++	vxorps	%xmm14,%xmm8,%xmm8
++
++	vpclmulqdq	$0x00,%xmm0,%xmm11,%xmm5
++	vmovdqu	96-32(%r9),%xmm3
++	vpxor	%xmm4,%xmm5,%xmm5
++	vpunpckhqdq	%xmm10,%xmm10,%xmm2
++	vpclmulqdq	$0x11,%xmm0,%xmm11,%xmm11
++	vpxor	%xmm10,%xmm2,%xmm2
++	vpalignr	$8,%xmm8,%xmm8,%xmm14
++	vpxor	%xmm12,%xmm11,%xmm11
++	vpclmulqdq	$0x10,%xmm15,%xmm1,%xmm1
++	vmovdqu	128-32(%r9),%xmm15
++	vpxor	%xmm9,%xmm1,%xmm1
++
++	vxorps	%xmm7,%xmm14,%xmm14
++	vpclmulqdq	$0x10,16(%r11),%xmm8,%xmm8
++	vxorps	%xmm14,%xmm8,%xmm8
++
++	vpclmulqdq	$0x00,%xmm3,%xmm10,%xmm4
++	vmovdqu	112-32(%r9),%xmm0
++	vpxor	%xmm5,%xmm4,%xmm4
++	vpunpckhqdq	%xmm8,%xmm8,%xmm9
++	vpclmulqdq	$0x11,%xmm3,%xmm10,%xmm10
++	vpxor	%xmm8,%xmm9,%xmm9
++	vpxor	%xmm11,%xmm10,%xmm10
++	vpclmulqdq	$0x00,%xmm15,%xmm2,%xmm2
++	vpxor	%xmm1,%xmm2,%xmm2
++
++	vpclmulqdq	$0x00,%xmm0,%xmm8,%xmm5
++	vpclmulqdq	$0x11,%xmm0,%xmm8,%xmm7
++	vpxor	%xmm4,%xmm5,%xmm5
++	vpclmulqdq	$0x10,%xmm15,%xmm9,%xmm6
++	vpxor	%xmm10,%xmm7,%xmm7
++	vpxor	%xmm2,%xmm6,%xmm6
++
++	vpxor	%xmm5,%xmm7,%xmm4
++	vpxor	%xmm4,%xmm6,%xmm6
++	vpslldq	$8,%xmm6,%xmm1
++	vmovdqu	16(%r11),%xmm3
++	vpsrldq	$8,%xmm6,%xmm6
++	vpxor	%xmm1,%xmm5,%xmm8
++	vpxor	%xmm6,%xmm7,%xmm7
++
++	vpalignr	$8,%xmm8,%xmm8,%xmm2
++	vpclmulqdq	$0x10,%xmm3,%xmm8,%xmm8
++	vpxor	%xmm2,%xmm8,%xmm8
++
++	vpalignr	$8,%xmm8,%xmm8,%xmm2
++	vpclmulqdq	$0x10,%xmm3,%xmm8,%xmm8
++	vpxor	%xmm7,%xmm2,%xmm2
++	vpxor	%xmm2,%xmm8,%xmm8
++	vpshufb	(%r11),%xmm8,%xmm8
++	vmovdqu	%xmm8,-64(%r9)
++
++	vzeroupper
++	movq	-48(%rax),%r15
++.cfi_restore	%r15
++	movq	-40(%rax),%r14
++.cfi_restore	%r14
++	movq	-32(%rax),%r13
++.cfi_restore	%r13
++	movq	-24(%rax),%r12
++.cfi_restore	%r12
++	movq	-16(%rax),%rbp
++.cfi_restore	%rbp
++	movq	-8(%rax),%rbx
++.cfi_restore	%rbx
++	leaq	(%rax),%rsp
++.cfi_def_cfa_register	%rsp
++.Lgcm_enc_abort:
++	movq	%r10,%rax
++	.byte	0xf3,0xc3
++.cfi_endproc
++.size	aesni_gcm_encrypt,.-aesni_gcm_encrypt
++
++/* Some utility routines */
++
++/*
++ * clear all fpu registers
++ * void clear_fpu_regs_avx(void);
++ */
++.globl	clear_fpu_regs_avx
++.type	clear_fpu_regs_avx,@function
++.align	32
++clear_fpu_regs_avx:
++	vzeroall
++	ret
++.size	clear_fpu_regs_avx,.-clear_fpu_regs_avx
++
++/*
++ * void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
++ *
++ * XORs one pair of unaligned 128-bit blocks from `src' and `dst' and
++ * stores the result at `dst'. The XOR is performed using FPU registers,
++ * so make sure FPU state is saved when running this in the kernel.
++ */
++.globl  gcm_xor_avx
++.type	gcm_xor_avx,@function
++.align	32
++gcm_xor_avx:
++	movdqu  (%rdi), %xmm0
++	movdqu  (%rsi), %xmm1
++	pxor    %xmm1, %xmm0
++	movdqu  %xmm0, (%rsi)
++	ret
++.size	gcm_xor_avx,.-gcm_xor_avx
++
++/*
++ * Toggle a boolean_t value atomically and return the new value.
++ * boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
++ */
++.globl	atomic_toggle_boolean_nv
++.type	atomic_toggle_boolean_nv,@function
++.align	32
++atomic_toggle_boolean_nv:
++	xorl	%eax, %eax
++	lock
++	xorl	$1, (%rdi)
++	jz	1f
++	movl	$1, %eax
++1:
++	ret
++.size	atomic_toggle_boolean_nv,.-atomic_toggle_boolean_nv
++
++.align	64
++.Lbswap_mask:
++.byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
++.Lpoly:
++.byte	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xc2
++.Lone_msb:
++.byte	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
++.Ltwo_lsb:
++.byte	2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
++.Lone_lsb:
++.byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
++.byte	65,69,83,45,78,73,32,71,67,77,32,109,111,100,117,108,101,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
++.align	64
++
++/* Mark the stack non-executable. */
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
++
++#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
+diff --git a/module/icp/asm-x86_64/modes/ghash-x86_64.S b/module/icp/asm-x86_64/modes/ghash-x86_64.S
+new file mode 100644
+index 00000000000..90cc36b43a7
+--- /dev/null
++++ b/module/icp/asm-x86_64/modes/ghash-x86_64.S
+@@ -0,0 +1,714 @@
++# Copyright 2010-2016 The OpenSSL Project Authors. All Rights Reserved.
++#
++# Licensed under the Apache License 2.0 (the "License").  You may not use
++# this file except in compliance with the License.  You can obtain a copy
++# in the file LICENSE in the source distribution or at
++# https://www.openssl.org/source/license.html
++
++#
++# ====================================================================
++# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
++# project. The module is, however, dual licensed under OpenSSL and
++# CRYPTOGAMS licenses depending on where you obtain it. For further
++# details see http://www.openssl.org/~appro/cryptogams/.
++# ====================================================================
++#
++# March, June 2010
++#
++# The module implements "4-bit" GCM GHASH function and underlying
++# single multiplication operation in GF(2^128). "4-bit" means that
++# it uses 256 bytes per-key table [+128 bytes shared table]. GHASH
++# function features so called "528B" variant utilizing additional
++# 256+16 bytes of per-key storage [+512 bytes shared table].
++# Performance results are for this streamed GHASH subroutine and are
++# expressed in cycles per processed byte, less is better:
++#
++#		gcc 3.4.x(*)	assembler
++#
++# P4		28.6		14.0		+100%
++# Opteron	19.3		7.7		+150%
++# Core2		17.8		8.1(**)		+120%
++# Atom		31.6		16.8		+88%
++# VIA Nano	21.8		10.1		+115%
++#
++# (*)	comparison is not completely fair, because C results are
++#	for vanilla "256B" implementation, while assembler results
++#	are for "528B";-)
++# (**)	it's mystery [to me] why Core2 result is not same as for
++#	Opteron;
++
++# May 2010
++#
++# Add PCLMULQDQ version performing at 2.02 cycles per processed byte.
++# See ghash-x86.pl for background information and details about coding
++# techniques.
++#
++# Special thanks to David Woodhouse for providing access to a
++# Westmere-based system on behalf of Intel Open Source Technology Centre.
++
++# December 2012
++#
++# Overhaul: aggregate Karatsuba post-processing, improve ILP in
++# reduction_alg9, increase reduction aggregate factor to 4x. As for
++# the latter. ghash-x86.pl discusses that it makes lesser sense to
++# increase aggregate factor. Then why increase here? Critical path
++# consists of 3 independent pclmulqdq instructions, Karatsuba post-
++# processing and reduction. "On top" of this we lay down aggregated
++# multiplication operations, triplets of independent pclmulqdq's. As
++# issue rate for pclmulqdq is limited, it makes lesser sense to
++# aggregate more multiplications than it takes to perform remaining
++# non-multiplication operations. 2x is near-optimal coefficient for
++# contemporary Intel CPUs (therefore modest improvement coefficient),
++# but not for Bulldozer. Latter is because logical SIMD operations
++# are twice as slow in comparison to Intel, so that critical path is
++# longer. A CPU with higher pclmulqdq issue rate would also benefit
++# from higher aggregate factor...
++#
++# Westmere	1.78(+13%)
++# Sandy Bridge	1.80(+8%)
++# Ivy Bridge	1.80(+7%)
++# Haswell	0.55(+93%) (if system doesn't support AVX)
++# Broadwell	0.45(+110%)(if system doesn't support AVX)
++# Skylake	0.44(+110%)(if system doesn't support AVX)
++# Bulldozer	1.49(+27%)
++# Silvermont	2.88(+13%)
++# Knights L	2.12(-)    (if system doesn't support AVX)
++# Goldmont	1.08(+24%)
++
++# March 2013
++#
++# ... 8x aggregate factor AVX code path is using reduction algorithm
++# suggested by Shay Gueron[1]. Even though contemporary AVX-capable
++# CPUs such as Sandy and Ivy Bridge can execute it, the code performs
++# sub-optimally in comparison to above mentioned version. But thanks
++# to Ilya Albrekht and Max Locktyukhin of Intel Corp. we knew that
++# it performs in 0.41 cycles per byte on Haswell processor, in
++# 0.29 on Broadwell, and in 0.36 on Skylake.
++#
++# Knights Landing achieves 1.09 cpb.
++#
++# [1] http://rt.openssl.org/Ticket/Display.html?id=2900&user=guest&pass=guest
++
++# Generated once from
++# https://github.com/openssl/openssl/blob/5ffc3324/crypto/modes/asm/ghash-x86_64.pl
++# and modified for ICP. Modification are kept at a bare minimum to ease later
++# upstream merges.
++
++#if defined(__x86_64__) && defined(HAVE_AVX) && \
++    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
++
++.text
++
++.globl	gcm_gmult_clmul
++.type	gcm_gmult_clmul,@function
++.align	16
++gcm_gmult_clmul:
++.cfi_startproc
++.L_gmult_clmul:
++	movdqu	(%rdi),%xmm0
++	movdqa	.Lbswap_mask(%rip),%xmm5
++	movdqu	(%rsi),%xmm2
++	movdqu	32(%rsi),%xmm4
++.byte	102,15,56,0,197
++	movdqa	%xmm0,%xmm1
++	pshufd	$78,%xmm0,%xmm3
++	pxor	%xmm0,%xmm3
++.byte	102,15,58,68,194,0
++.byte	102,15,58,68,202,17
++.byte	102,15,58,68,220,0
++	pxor	%xmm0,%xmm3
++	pxor	%xmm1,%xmm3
++
++	movdqa	%xmm3,%xmm4
++	psrldq	$8,%xmm3
++	pslldq	$8,%xmm4
++	pxor	%xmm3,%xmm1
++	pxor	%xmm4,%xmm0
++
++	movdqa	%xmm0,%xmm4
++	movdqa	%xmm0,%xmm3
++	psllq	$5,%xmm0
++	pxor	%xmm0,%xmm3
++	psllq	$1,%xmm0
++	pxor	%xmm3,%xmm0
++	psllq	$57,%xmm0
++	movdqa	%xmm0,%xmm3
++	pslldq	$8,%xmm0
++	psrldq	$8,%xmm3
++	pxor	%xmm4,%xmm0
++	pxor	%xmm3,%xmm1
++
++
++	movdqa	%xmm0,%xmm4
++	psrlq	$1,%xmm0
++	pxor	%xmm4,%xmm1
++	pxor	%xmm0,%xmm4
++	psrlq	$5,%xmm0
++	pxor	%xmm4,%xmm0
++	psrlq	$1,%xmm0
++	pxor	%xmm1,%xmm0
++.byte	102,15,56,0,197
++	movdqu	%xmm0,(%rdi)
++	.byte	0xf3,0xc3
++.cfi_endproc
++.size	gcm_gmult_clmul,.-gcm_gmult_clmul
++
++.globl	gcm_init_htab_avx
++.type	gcm_init_htab_avx,@function
++.align	32
++gcm_init_htab_avx:
++.cfi_startproc
++	vzeroupper
++
++	vmovdqu	(%rsi),%xmm2
++	// KCF/ICP stores H in network byte order with the hi qword first
++	// so we need to swap all bytes, not the 2 qwords.
++	vmovdqu	.Lbswap_mask(%rip),%xmm4
++	vpshufb	%xmm4,%xmm2,%xmm2
++
++
++	vpshufd	$255,%xmm2,%xmm4
++	vpsrlq	$63,%xmm2,%xmm3
++	vpsllq	$1,%xmm2,%xmm2
++	vpxor	%xmm5,%xmm5,%xmm5
++	vpcmpgtd	%xmm4,%xmm5,%xmm5
++	vpslldq	$8,%xmm3,%xmm3
++	vpor	%xmm3,%xmm2,%xmm2
++
++
++	vpand	.L0x1c2_polynomial(%rip),%xmm5,%xmm5
++	vpxor	%xmm5,%xmm2,%xmm2
++
++	vpunpckhqdq	%xmm2,%xmm2,%xmm6
++	vmovdqa	%xmm2,%xmm0
++	vpxor	%xmm2,%xmm6,%xmm6
++	movq	$4,%r10
++	jmp	.Linit_start_avx
++.align	32
++.Linit_loop_avx:
++	vpalignr	$8,%xmm3,%xmm4,%xmm5
++	vmovdqu	%xmm5,-16(%rdi)
++	vpunpckhqdq	%xmm0,%xmm0,%xmm3
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x11,%xmm2,%xmm0,%xmm1
++	vpclmulqdq	$0x00,%xmm2,%xmm0,%xmm0
++	vpclmulqdq	$0x00,%xmm6,%xmm3,%xmm3
++	vpxor	%xmm0,%xmm1,%xmm4
++	vpxor	%xmm4,%xmm3,%xmm3
++
++	vpslldq	$8,%xmm3,%xmm4
++	vpsrldq	$8,%xmm3,%xmm3
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpxor	%xmm3,%xmm1,%xmm1
++	vpsllq	$57,%xmm0,%xmm3
++	vpsllq	$62,%xmm0,%xmm4
++	vpxor	%xmm3,%xmm4,%xmm4
++	vpsllq	$63,%xmm0,%xmm3
++	vpxor	%xmm3,%xmm4,%xmm4
++	vpslldq	$8,%xmm4,%xmm3
++	vpsrldq	$8,%xmm4,%xmm4
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpxor	%xmm4,%xmm1,%xmm1
++
++	vpsrlq	$1,%xmm0,%xmm4
++	vpxor	%xmm0,%xmm1,%xmm1
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpsrlq	$5,%xmm4,%xmm4
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpsrlq	$1,%xmm0,%xmm0
++	vpxor	%xmm1,%xmm0,%xmm0
++.Linit_start_avx:
++	vmovdqa	%xmm0,%xmm5
++	vpunpckhqdq	%xmm0,%xmm0,%xmm3
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x11,%xmm2,%xmm0,%xmm1
++	vpclmulqdq	$0x00,%xmm2,%xmm0,%xmm0
++	vpclmulqdq	$0x00,%xmm6,%xmm3,%xmm3
++	vpxor	%xmm0,%xmm1,%xmm4
++	vpxor	%xmm4,%xmm3,%xmm3
++
++	vpslldq	$8,%xmm3,%xmm4
++	vpsrldq	$8,%xmm3,%xmm3
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpxor	%xmm3,%xmm1,%xmm1
++	vpsllq	$57,%xmm0,%xmm3
++	vpsllq	$62,%xmm0,%xmm4
++	vpxor	%xmm3,%xmm4,%xmm4
++	vpsllq	$63,%xmm0,%xmm3
++	vpxor	%xmm3,%xmm4,%xmm4
++	vpslldq	$8,%xmm4,%xmm3
++	vpsrldq	$8,%xmm4,%xmm4
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpxor	%xmm4,%xmm1,%xmm1
++
++	vpsrlq	$1,%xmm0,%xmm4
++	vpxor	%xmm0,%xmm1,%xmm1
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpsrlq	$5,%xmm4,%xmm4
++	vpxor	%xmm4,%xmm0,%xmm0
++	vpsrlq	$1,%xmm0,%xmm0
++	vpxor	%xmm1,%xmm0,%xmm0
++	vpshufd	$78,%xmm5,%xmm3
++	vpshufd	$78,%xmm0,%xmm4
++	vpxor	%xmm5,%xmm3,%xmm3
++	vmovdqu	%xmm5,0(%rdi)
++	vpxor	%xmm0,%xmm4,%xmm4
++	vmovdqu	%xmm0,16(%rdi)
++	leaq	48(%rdi),%rdi
++	subq	$1,%r10
++	jnz	.Linit_loop_avx
++
++	vpalignr	$8,%xmm4,%xmm3,%xmm5
++	vmovdqu	%xmm5,-16(%rdi)
++
++	vzeroupper
++	.byte	0xf3,0xc3
++.cfi_endproc
++.size	gcm_init_htab_avx,.-gcm_init_htab_avx
++
++.globl	gcm_gmult_avx
++.type	gcm_gmult_avx,@function
++.align	32
++gcm_gmult_avx:
++.cfi_startproc
++	jmp	.L_gmult_clmul
++.cfi_endproc
++.size	gcm_gmult_avx,.-gcm_gmult_avx
++.globl	gcm_ghash_avx
++.type	gcm_ghash_avx,@function
++.align	32
++gcm_ghash_avx:
++.cfi_startproc
++	vzeroupper
++
++	vmovdqu	(%rdi),%xmm10
++	leaq	.L0x1c2_polynomial(%rip),%r10
++	leaq	64(%rsi),%rsi
++	vmovdqu	.Lbswap_mask(%rip),%xmm13
++	vpshufb	%xmm13,%xmm10,%xmm10
++	cmpq	$0x80,%rcx
++	jb	.Lshort_avx
++	subq	$0x80,%rcx
++
++	vmovdqu	112(%rdx),%xmm14
++	vmovdqu	0-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vmovdqu	32-64(%rsi),%xmm7
++
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vmovdqu	96(%rdx),%xmm15
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpxor	%xmm14,%xmm9,%xmm9
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	16-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vmovdqu	80(%rdx),%xmm14
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm15,%xmm8,%xmm8
++
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vmovdqu	48-64(%rsi),%xmm6
++	vpxor	%xmm14,%xmm9,%xmm9
++	vmovdqu	64(%rdx),%xmm15
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	80-64(%rsi),%xmm7
++
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	64-64(%rsi),%xmm6
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm15,%xmm8,%xmm8
++
++	vmovdqu	48(%rdx),%xmm14
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpxor	%xmm4,%xmm1,%xmm1
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vmovdqu	96-64(%rsi),%xmm6
++	vpxor	%xmm5,%xmm2,%xmm2
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	128-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++
++	vmovdqu	32(%rdx),%xmm15
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	112-64(%rsi),%xmm6
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm15,%xmm8,%xmm8
++
++	vmovdqu	16(%rdx),%xmm14
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpxor	%xmm4,%xmm1,%xmm1
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vmovdqu	144-64(%rsi),%xmm6
++	vpxor	%xmm5,%xmm2,%xmm2
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	176-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++
++	vmovdqu	(%rdx),%xmm15
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	160-64(%rsi),%xmm6
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x10,%xmm7,%xmm9,%xmm2
++
++	leaq	128(%rdx),%rdx
++	cmpq	$0x80,%rcx
++	jb	.Ltail_avx
++
++	vpxor	%xmm10,%xmm15,%xmm15
++	subq	$0x80,%rcx
++	jmp	.Loop8x_avx
++
++.align	32
++.Loop8x_avx:
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vmovdqu	112(%rdx),%xmm14
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpxor	%xmm15,%xmm8,%xmm8
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm10
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm11
++	vmovdqu	0-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm12
++	vmovdqu	32-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++
++	vmovdqu	96(%rdx),%xmm15
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpxor	%xmm3,%xmm10,%xmm10
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vxorps	%xmm4,%xmm11,%xmm11
++	vmovdqu	16-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm5,%xmm12,%xmm12
++	vxorps	%xmm15,%xmm8,%xmm8
++
++	vmovdqu	80(%rdx),%xmm14
++	vpxor	%xmm10,%xmm12,%xmm12
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpxor	%xmm11,%xmm12,%xmm12
++	vpslldq	$8,%xmm12,%xmm9
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vpsrldq	$8,%xmm12,%xmm12
++	vpxor	%xmm9,%xmm10,%xmm10
++	vmovdqu	48-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vxorps	%xmm12,%xmm11,%xmm11
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	80-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++	vpxor	%xmm2,%xmm5,%xmm5
++
++	vmovdqu	64(%rdx),%xmm15
++	vpalignr	$8,%xmm10,%xmm10,%xmm12
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	64-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm4,%xmm1,%xmm1
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vxorps	%xmm15,%xmm8,%xmm8
++	vpxor	%xmm5,%xmm2,%xmm2
++
++	vmovdqu	48(%rdx),%xmm14
++	vpclmulqdq	$0x10,(%r10),%xmm10,%xmm10
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vmovdqu	96-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	128-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++	vpxor	%xmm2,%xmm5,%xmm5
++
++	vmovdqu	32(%rdx),%xmm15
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpxor	%xmm3,%xmm0,%xmm0
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	112-64(%rsi),%xmm6
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm4,%xmm1,%xmm1
++	vpclmulqdq	$0x00,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm15,%xmm8,%xmm8
++	vpxor	%xmm5,%xmm2,%xmm2
++	vxorps	%xmm12,%xmm10,%xmm10
++
++	vmovdqu	16(%rdx),%xmm14
++	vpalignr	$8,%xmm10,%xmm10,%xmm12
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm3
++	vpshufb	%xmm13,%xmm14,%xmm14
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm4
++	vmovdqu	144-64(%rsi),%xmm6
++	vpclmulqdq	$0x10,(%r10),%xmm10,%xmm10
++	vxorps	%xmm11,%xmm12,%xmm12
++	vpunpckhqdq	%xmm14,%xmm14,%xmm9
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x10,%xmm7,%xmm8,%xmm5
++	vmovdqu	176-64(%rsi),%xmm7
++	vpxor	%xmm14,%xmm9,%xmm9
++	vpxor	%xmm2,%xmm5,%xmm5
++
++	vmovdqu	(%rdx),%xmm15
++	vpclmulqdq	$0x00,%xmm6,%xmm14,%xmm0
++	vpshufb	%xmm13,%xmm15,%xmm15
++	vpclmulqdq	$0x11,%xmm6,%xmm14,%xmm1
++	vmovdqu	160-64(%rsi),%xmm6
++	vpxor	%xmm12,%xmm15,%xmm15
++	vpclmulqdq	$0x10,%xmm7,%xmm9,%xmm2
++	vpxor	%xmm10,%xmm15,%xmm15
++
++	leaq	128(%rdx),%rdx
++	subq	$0x80,%rcx
++	jnc	.Loop8x_avx
++
++	addq	$0x80,%rcx
++	jmp	.Ltail_no_xor_avx
++
++.align	32
++.Lshort_avx:
++	vmovdqu	-16(%rdx,%rcx,1),%xmm14
++	leaq	(%rdx,%rcx,1),%rdx
++	vmovdqu	0-64(%rsi),%xmm6
++	vmovdqu	32-64(%rsi),%xmm7
++	vpshufb	%xmm13,%xmm14,%xmm15
++
++	vmovdqa	%xmm0,%xmm3
++	vmovdqa	%xmm1,%xmm4
++	vmovdqa	%xmm2,%xmm5
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-32(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	16-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vpsrldq	$8,%xmm7,%xmm7
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-48(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	48-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vmovdqu	80-64(%rsi),%xmm7
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-64(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	64-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vpsrldq	$8,%xmm7,%xmm7
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-80(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	96-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vmovdqu	128-64(%rsi),%xmm7
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-96(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	112-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vpsrldq	$8,%xmm7,%xmm7
++	subq	$0x10,%rcx
++	jz	.Ltail_avx
++
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vmovdqu	-112(%rdx),%xmm14
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vmovdqu	144-64(%rsi),%xmm6
++	vpshufb	%xmm13,%xmm14,%xmm15
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++	vmovq	184-64(%rsi),%xmm7
++	subq	$0x10,%rcx
++	jmp	.Ltail_avx
++
++.align	32
++.Ltail_avx:
++	vpxor	%xmm10,%xmm15,%xmm15
++.Ltail_no_xor_avx:
++	vpunpckhqdq	%xmm15,%xmm15,%xmm8
++	vpxor	%xmm0,%xmm3,%xmm3
++	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
++	vpxor	%xmm15,%xmm8,%xmm8
++	vpxor	%xmm1,%xmm4,%xmm4
++	vpclmulqdq	$0x11,%xmm6,%xmm15,%xmm1
++	vpxor	%xmm2,%xmm5,%xmm5
++	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
++
++	vmovdqu	(%r10),%xmm12
++
++	vpxor	%xmm0,%xmm3,%xmm10
++	vpxor	%xmm1,%xmm4,%xmm11
++	vpxor	%xmm2,%xmm5,%xmm5
++
++	vpxor	%xmm10,%xmm5,%xmm5
++	vpxor	%xmm11,%xmm5,%xmm5
++	vpslldq	$8,%xmm5,%xmm9
++	vpsrldq	$8,%xmm5,%xmm5
++	vpxor	%xmm9,%xmm10,%xmm10
++	vpxor	%xmm5,%xmm11,%xmm11
++
++	vpclmulqdq	$0x10,%xmm12,%xmm10,%xmm9
++	vpalignr	$8,%xmm10,%xmm10,%xmm10
++	vpxor	%xmm9,%xmm10,%xmm10
++
++	vpclmulqdq	$0x10,%xmm12,%xmm10,%xmm9
++	vpalignr	$8,%xmm10,%xmm10,%xmm10
++	vpxor	%xmm11,%xmm10,%xmm10
++	vpxor	%xmm9,%xmm10,%xmm10
++
++	cmpq	$0,%rcx
++	jne	.Lshort_avx
++
++	vpshufb	%xmm13,%xmm10,%xmm10
++	vmovdqu	%xmm10,(%rdi)
++	vzeroupper
++	.byte	0xf3,0xc3
++.cfi_endproc
++.size	gcm_ghash_avx,.-gcm_ghash_avx
++.align	64
++.Lbswap_mask:
++.byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
++.L0x1c2_polynomial:
++.byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xc2
++.L7_mask:
++.long	7,0,7,0
++.L7_mask_poly:
++.long	7,0,450,0
++.align	64
++.type	.Lrem_4bit,@object
++.Lrem_4bit:
++.long	0,0,0,471859200,0,943718400,0,610271232
++.long	0,1887436800,0,1822425088,0,1220542464,0,1423966208
++.long	0,3774873600,0,4246732800,0,3644850176,0,3311403008
++.long	0,2441084928,0,2376073216,0,2847932416,0,3051356160
++.type	.Lrem_8bit,@object
++.Lrem_8bit:
++.value	0x0000,0x01C2,0x0384,0x0246,0x0708,0x06CA,0x048C,0x054E
++.value	0x0E10,0x0FD2,0x0D94,0x0C56,0x0918,0x08DA,0x0A9C,0x0B5E
++.value	0x1C20,0x1DE2,0x1FA4,0x1E66,0x1B28,0x1AEA,0x18AC,0x196E
++.value	0x1230,0x13F2,0x11B4,0x1076,0x1538,0x14FA,0x16BC,0x177E
++.value	0x3840,0x3982,0x3BC4,0x3A06,0x3F48,0x3E8A,0x3CCC,0x3D0E
++.value	0x3650,0x3792,0x35D4,0x3416,0x3158,0x309A,0x32DC,0x331E
++.value	0x2460,0x25A2,0x27E4,0x2626,0x2368,0x22AA,0x20EC,0x212E
++.value	0x2A70,0x2BB2,0x29F4,0x2836,0x2D78,0x2CBA,0x2EFC,0x2F3E
++.value	0x7080,0x7142,0x7304,0x72C6,0x7788,0x764A,0x740C,0x75CE
++.value	0x7E90,0x7F52,0x7D14,0x7CD6,0x7998,0x785A,0x7A1C,0x7BDE
++.value	0x6CA0,0x6D62,0x6F24,0x6EE6,0x6BA8,0x6A6A,0x682C,0x69EE
++.value	0x62B0,0x6372,0x6134,0x60F6,0x65B8,0x647A,0x663C,0x67FE
++.value	0x48C0,0x4902,0x4B44,0x4A86,0x4FC8,0x4E0A,0x4C4C,0x4D8E
++.value	0x46D0,0x4712,0x4554,0x4496,0x41D8,0x401A,0x425C,0x439E
++.value	0x54E0,0x5522,0x5764,0x56A6,0x53E8,0x522A,0x506C,0x51AE
++.value	0x5AF0,0x5B32,0x5974,0x58B6,0x5DF8,0x5C3A,0x5E7C,0x5FBE
++.value	0xE100,0xE0C2,0xE284,0xE346,0xE608,0xE7CA,0xE58C,0xE44E
++.value	0xEF10,0xEED2,0xEC94,0xED56,0xE818,0xE9DA,0xEB9C,0xEA5E
++.value	0xFD20,0xFCE2,0xFEA4,0xFF66,0xFA28,0xFBEA,0xF9AC,0xF86E
++.value	0xF330,0xF2F2,0xF0B4,0xF176,0xF438,0xF5FA,0xF7BC,0xF67E
++.value	0xD940,0xD882,0xDAC4,0xDB06,0xDE48,0xDF8A,0xDDCC,0xDC0E
++.value	0xD750,0xD692,0xD4D4,0xD516,0xD058,0xD19A,0xD3DC,0xD21E
++.value	0xC560,0xC4A2,0xC6E4,0xC726,0xC268,0xC3AA,0xC1EC,0xC02E
++.value	0xCB70,0xCAB2,0xC8F4,0xC936,0xCC78,0xCDBA,0xCFFC,0xCE3E
++.value	0x9180,0x9042,0x9204,0x93C6,0x9688,0x974A,0x950C,0x94CE
++.value	0x9F90,0x9E52,0x9C14,0x9DD6,0x9898,0x995A,0x9B1C,0x9ADE
++.value	0x8DA0,0x8C62,0x8E24,0x8FE6,0x8AA8,0x8B6A,0x892C,0x88EE
++.value	0x83B0,0x8272,0x8034,0x81F6,0x84B8,0x857A,0x873C,0x86FE
++.value	0xA9C0,0xA802,0xAA44,0xAB86,0xAEC8,0xAF0A,0xAD4C,0xAC8E
++.value	0xA7D0,0xA612,0xA454,0xA596,0xA0D8,0xA11A,0xA35C,0xA29E
++.value	0xB5E0,0xB422,0xB664,0xB7A6,0xB2E8,0xB32A,0xB16C,0xB0AE
++.value	0xBBF0,0xBA32,0xB874,0xB9B6,0xBCF8,0xBD3A,0xBF7C,0xBEBE
++
++.byte	71,72,65,83,72,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
++.align	64
++
++/* Mark the stack non-executable. */
++#if defined(__linux__) && defined(__ELF__)
++.section .note.GNU-stack,"",%progbits
++#endif
++
++#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
+diff --git a/module/icp/include/aes/aes_impl.h b/module/icp/include/aes/aes_impl.h
+index a0b82ade455..0484462ca40 100644
+--- a/module/icp/include/aes/aes_impl.h
++++ b/module/icp/include/aes/aes_impl.h
+@@ -107,6 +107,11 @@ typedef union {
+ } aes_ks_t;
+ 
+ typedef struct aes_impl_ops aes_impl_ops_t;
++
++/*
++ * The absolute offset of the encr_ks (0) and the nr (504) fields are hard
++ * coded in aesni-gcm-x86_64, so please don't change (or adjust accordingly).
++ */
+ typedef struct aes_key aes_key_t;
+ struct aes_key {
+ 	aes_ks_t	encr_ks;  /* encryption key schedule */
+diff --git a/module/icp/include/modes/modes.h b/module/icp/include/modes/modes.h
+index 7c1f10b16e7..6a4939c4025 100644
+--- a/module/icp/include/modes/modes.h
++++ b/module/icp/include/modes/modes.h
+@@ -34,6 +34,16 @@ extern "C" {
+ #include <sys/crypto/common.h>
+ #include <sys/crypto/impl.h>
+ 
++/*
++ * Does the build chain support all instructions needed for the GCM assembler
++ * routines. AVX support should imply AES-NI and PCLMULQDQ, but make sure
++ * anyhow.
++ */
++#if defined(__x86_64__) && defined(HAVE_AVX) && \
++    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
++#define	CAN_USE_GCM_ASM
++#endif
++
+ #define	ECB_MODE			0x00000002
+ #define	CBC_MODE			0x00000004
+ #define	CTR_MODE			0x00000008
+@@ -189,13 +199,17 @@ typedef struct ccm_ctx {
+  *
+  * gcm_H:		Subkey.
+  *
++ * gcm_Htable:		Pre-computed and pre-shifted H, H^2, ... H^6 for the
++ *			Karatsuba Algorithm in host byte order.
++ *
+  * gcm_J0:		Pre-counter block generated from the IV.
+  *
+  * gcm_len_a_len_c:	64-bit representations of the bit lengths of
+  *			AAD and ciphertext.
+  *
+- * gcm_kmflag:		Current value of kmflag. Used only for allocating
+- *			the plaintext buffer during decryption.
++ * gcm_kmflag:		Current value of kmflag. Used for allocating
++ *			the plaintext buffer during decryption and a
++ *			gcm_avx_chunk_size'd buffer for avx enabled encryption.
+  */
+ typedef struct gcm_ctx {
+ 	struct common_ctx gcm_common;
+@@ -203,12 +217,23 @@ typedef struct gcm_ctx {
+ 	size_t gcm_processed_data_len;
+ 	size_t gcm_pt_buf_len;
+ 	uint32_t gcm_tmp[4];
++	/*
++	 * The relative positions of gcm_ghash,, gcm_H and pre-computed
++	 * gcm_Htable are hard coded in aesni-gcm-x86_64.S and ghash-x86_64.S,
++	 * so please don't change (or adjust accordingly).
++	 */
+ 	uint64_t gcm_ghash[2];
+ 	uint64_t gcm_H[2];
++#ifdef CAN_USE_GCM_ASM
++	uint64_t gcm_Htable[12][2];
++#endif
+ 	uint64_t gcm_J0[2];
+ 	uint64_t gcm_len_a_len_c[2];
+ 	uint8_t *gcm_pt_buf;
+ 	int gcm_kmflag;
++#ifdef CAN_USE_GCM_ASM
++	boolean_t gcm_use_avx;
++#endif
+ } gcm_ctx_t;
+ 
+ #define	gcm_keysched		gcm_common.cc_keysched

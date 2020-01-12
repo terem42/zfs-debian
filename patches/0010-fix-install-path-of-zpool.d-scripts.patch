@@ -1,0 +1,37 @@
+From: =?utf-8?q?Fabian_Gr=C3=BCnbichler?= <f.gruenbichler@proxmox.com>
+Date: Thu, 12 Oct 2017 08:57:48 +0200
+Subject: fix install path of zpool.d scripts
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Fabian Grünbichler <f.gruenbichler@proxmox.com>
+---
+ cmd/zpool/Makefile.am | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+Index: zfs-linux-0.8.1/cmd/zpool/Makefile.am
+===================================================================
+--- zfs-linux-0.8.1.orig/cmd/zpool/Makefile.am
++++ zfs-linux-0.8.1/cmd/zpool/Makefile.am
+@@ -21,11 +21,11 @@ zpool_LDADD = \
+ zpool_LDADD += -lm $(LIBBLKID)
+ 
+ zpoolconfdir = $(sysconfdir)/zfs/zpool.d
+-zpoolexecdir = $(zfsexecdir)/zpool.d
++zpoollibdir = /usr/lib/zfs-linux/zpool.d
+ 
+ EXTRA_DIST = zpool.d/README
+ 
+-dist_zpoolexec_SCRIPTS = \
++dist_zpoollib_SCRIPTS = \
+ 	zpool.d/enc \
+ 	zpool.d/encdev \
+ 	zpool.d/fault_led \
+@@ -118,5 +118,5 @@ install-data-hook:
+ 	for f in $(zpoolconfdefaults); do \
+ 	  test -f "$(DESTDIR)$(zpoolconfdir)/$${f}" -o \
+ 	       -L "$(DESTDIR)$(zpoolconfdir)/$${f}" || \
+-	    ln -s "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
++	    ln -s "$(zpoollibdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
+ 	done

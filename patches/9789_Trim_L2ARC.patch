@@ -1,0 +1,321 @@
+From c7a81ec037585a03f4de620ae664e7b44348cdef Mon Sep 17 00:00:00 2001
+From: George Amanakis <gamanakis@gmail.com>
+Date: Mon, 30 Dec 2019 13:31:53 -0500
+Subject: [PATCH] Trim L2ARC
+
+Teach l2arc_evict() to trim the L2ARC before evicting headers from it by
+introducing a public vdev_trim_simple() wrapper.
+
+Signed-off-by: George Amanakis <gamanakis@gmail.com>
+---
+ include/sys/vdev_trim.h                       |   2 +
+ module/zfs/arc.c                              |  44 ++++++++
+ module/zfs/vdev_trim.c                        |  58 ++++++++++
+ tests/runfiles/common.run                     |   2 +-
+ .../tests/functional/trim/Makefile.am         |   1 +
+ .../tests/functional/trim/autotrim_l2arc.ksh  | 103 ++++++++++++++++++
+ 6 files changed, 209 insertions(+), 1 deletion(-)
+ create mode 100755 tests/zfs-tests/tests/functional/trim/autotrim_l2arc.ksh
+
+diff --git a/include/sys/vdev_trim.h b/include/sys/vdev_trim.h
+index 1e54017665b..1fc7d0c2e77 100644
+--- a/include/sys/vdev_trim.h
++++ b/include/sys/vdev_trim.h
+@@ -44,6 +44,8 @@ extern void vdev_autotrim(spa_t *spa);
+ extern void vdev_autotrim_stop_all(spa_t *spa);
+ extern void vdev_autotrim_stop_wait(vdev_t *vd);
+ extern void vdev_autotrim_restart(spa_t *spa);
++extern int vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size,
++    trim_type_t type);
+ 
+ #ifdef	__cplusplus
+ }
+diff --git a/module/zfs/arc.c b/module/zfs/arc.c
+index 8fa8c91ac49..9f102b34f10 100644
+--- a/module/zfs/arc.c
++++ b/module/zfs/arc.c
+@@ -300,6 +300,7 @@
+ #include <sys/trace_zfs.h>
+ #include <sys/aggsum.h>
+ #include <sys/cityhash.h>
++#include <sys/vdev_trim.h>
+ 
+ #ifndef _KERNEL
+ /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
+@@ -7979,6 +7980,7 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
+ 	arc_buf_hdr_t *hdr, *hdr_prev;
+ 	kmutex_t *hash_lock;
+ 	uint64_t taddr;
++	vdev_t *vd = dev->l2ad_vdev;
+ 
+ 	buflist = &dev->l2ad_buflist;
+ 
+@@ -7998,10 +8000,51 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
+ 		taddr = dev->l2ad_end;
+ 	} else {
+ 		taddr = dev->l2ad_hand + distance;
++		/*
++		 * If vdev_trim_last_offset has previously reached the end
++		 * of the device but l2ad_hand has looped around, reset
++		 * vdev_trim_last_offset.
++		 */
++		if (vd->vdev_trim_last_offset == dev->l2ad_end)
++			vd->vdev_trim_last_offset = dev->l2ad_start;
+ 	}
+ 	DTRACE_PROBE4(l2arc__evict, l2arc_dev_t *, dev, list_t *, buflist,
+ 	    uint64_t, taddr, boolean_t, all);
+ 
++	/*
++	 * Trim the space to be evicted. Check that we do not evict the whole
++	 * device and that it has trim.
++	 */
++	if (!all && vd->vdev_has_trim) {
++		/*
++		 * If the size of the cache device is less than or equal to
++		 * (2 * distance) bytes then we should not account for
++		 * vdev_trim_last_offset when trimming because l2ad_hand will
++		 * always be within (2 * distance ) bytes from l2ad_end, and
++		 * vdev_trim_last_offset will not be reset.
++		 */
++		if ((dev->l2ad_end - dev->l2ad_start) > (2 * distance)) {
++			/*
++			 * We save taddr in vdev_trim_last_offset if the trim
++			 * was successfull, and if it is greater or equal to
++			 * taddr in the next run, skip trimming.
++			 */
++			if (vd->vdev_trim_last_offset < taddr) {
++				int err;
++				err = vdev_trim_simple(vd,
++				    vd->vdev_trim_last_offset,
++				    taddr - vd->vdev_trim_last_offset,
++				    TRIM_TYPE_AUTO);
++				if (err == 0) {
++					vd->vdev_trim_last_offset = taddr;
++				}
++			}
++		} else {
++			vdev_trim_simple(vd, dev->l2ad_hand,
++			    taddr - dev->l2ad_hand, TRIM_TYPE_AUTO);
++		}
++	}
++
+ top:
+ 	mutex_enter(&dev->l2ad_mtx);
+ 	for (hdr = list_tail(buflist); hdr; hdr = hdr_prev) {
+@@ -8575,6 +8618,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+ 	adddev->l2ad_first = B_TRUE;
+ 	adddev->l2ad_writing = B_FALSE;
+ 	list_link_init(&adddev->l2ad_node);
++	vd->vdev_trim_last_offset = adddev->l2ad_start;
+ 
+ 	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
+ 	/*
+diff --git a/module/zfs/vdev_trim.c b/module/zfs/vdev_trim.c
+index c7c429cbd5e..eb41c6b2e9b 100644
+--- a/module/zfs/vdev_trim.c
++++ b/module/zfs/vdev_trim.c
+@@ -1432,6 +1432,63 @@ vdev_autotrim_restart(spa_t *spa)
+ 		vdev_autotrim(spa);
+ }
+ 
++/*
++ * A wrapper which calls vdev_trim_ranges(). It is intended to be called
++ * on leaf vdevs.
++ */
++int
++vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size, trim_type_t type)
++{
++	trim_args_t		ta;
++	range_seg64_t 		logical_rs, physical_rs;
++	int			error;
++	logical_rs.rs_start = start;
++	logical_rs.rs_end = start + size;
++
++	ASSERT(vdev_is_concrete(vd));
++	ASSERT(vd->vdev_ops->vdev_op_leaf);
++	vdev_xlate(vd, &logical_rs, &physical_rs);
++
++	IMPLY(vd->vdev_top == vd,
++	    logical_rs.rs_start == physical_rs.rs_start);
++	IMPLY(vd->vdev_top == vd,
++	    logical_rs.rs_end == physical_rs.rs_end);
++
++	ta.trim_vdev = vd;
++	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
++	ta.trim_type = type;
++	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
++	ta.trim_extent_bytes_min = zfs_trim_extent_bytes_min;
++	ta.trim_flags = 0;
++
++	ASSERT3U(physical_rs.rs_end, >=, physical_rs.rs_start);
++
++	/*
++	 * With raidz, it's possible that the logical range does not live on
++	 * this leaf vdev. We only add the physical range to this vdev's if it
++	 * has a length greater than 0.
++	 */
++	if (physical_rs.rs_end > physical_rs.rs_start) {
++		range_tree_add(ta.trim_tree, physical_rs.rs_start,
++		    physical_rs.rs_end - physical_rs.rs_start);
++	} else {
++		ASSERT3U(physical_rs.rs_end, ==, physical_rs.rs_start);
++	}
++
++	error = vdev_trim_ranges(&ta);
++
++	mutex_enter(&vd->vdev_trim_io_lock);
++	while (vd->vdev_trim_inflight[ta.trim_type] > 0) {
++		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
++	}
++	mutex_exit(&vd->vdev_trim_io_lock);
++
++	range_tree_vacate(ta.trim_tree, NULL, NULL);
++	range_tree_destroy(ta.trim_tree);
++
++	return (error);
++}
++
+ EXPORT_SYMBOL(vdev_trim);
+ EXPORT_SYMBOL(vdev_trim_stop);
+ EXPORT_SYMBOL(vdev_trim_stop_all);
+@@ -1441,6 +1498,7 @@ EXPORT_SYMBOL(vdev_autotrim);
+ EXPORT_SYMBOL(vdev_autotrim_stop_all);
+ EXPORT_SYMBOL(vdev_autotrim_stop_wait);
+ EXPORT_SYMBOL(vdev_autotrim_restart);
++EXPORT_SYMBOL(vdev_trim_simple);
+ 
+ /* BEGIN CSTYLED */
+ ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,
+diff --git a/tests/runfiles/common.run b/tests/runfiles/common.run
+index a3396ac07ff..f545a82388c 100644
+--- a/tests/runfiles/common.run
++++ b/tests/runfiles/common.run
+@@ -836,7 +836,7 @@ tags = ['functional', 'threadsappend']
+ 
+ [tests/functional/trim]
+ tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
+-    'trim_integrity', 'trim_config']
++    'trim_integrity', 'trim_config', 'autotrim_l2arc']
+ tags = ['functional', 'trim']
+ 
+ [tests/functional/truncate]
+diff --git a/tests/zfs-tests/tests/functional/trim/Makefile.am b/tests/zfs-tests/tests/functional/trim/Makefile.am
+index 4f260a8e47e..8a05d52b326 100644
+--- a/tests/zfs-tests/tests/functional/trim/Makefile.am
++++ b/tests/zfs-tests/tests/functional/trim/Makefile.am
+@@ -7,5 +7,6 @@ dist_pkgdata_SCRIPTS = \
+ 	autotrim_integrity.ksh \
+ 	autotrim_config.ksh \
+ 	autotrim_trim_integrity.ksh \
++	autotrim_l2arc.ksh \
+ 	trim_integrity.ksh \
+ 	trim_config.ksh
+diff --git a/tests/zfs-tests/tests/functional/trim/autotrim_l2arc.ksh b/tests/zfs-tests/tests/functional/trim/autotrim_l2arc.ksh
+new file mode 100755
+index 00000000000..01d9b97f3e6
+--- /dev/null
++++ b/tests/zfs-tests/tests/functional/trim/autotrim_l2arc.ksh
+@@ -0,0 +1,103 @@
++#!/bin/ksh -p
++#
++# CDDL HEADER START
++#
++# This file and its contents are supplied under the terms of the
++# Common Development and Distribution License ("CDDL"), version 1.0.
++# You may only use this file in accordance with the terms of version
++# 1.0 of the CDDL.
++#
++# A full copy of the text of the CDDL should have accompanied this
++# source.  A copy of the CDDL is also available via the Internet at
++# http://www.illumos.org/license/CDDL.
++#
++# CDDL HEADER END
++#
++
++. $STF_SUITE/include/libtest.shlib
++. $STF_SUITE/tests/functional/trim/trim.kshlib
++. $STF_SUITE/tests/functional/trim/trim.cfg
++
++#
++# DESCRIPTION:
++# 	Verify trimming of L2ARC
++#
++# STRATEGY:
++#	1. Create a pool on file vdevs to trim.
++#	2. Set 'autotrim=on' on pool.
++#	3. Fill the pool with a file larger than the L2ARC vdev.
++#	4. Export and re-import the pool to stop trimming on main vdev.
++#	5. Record autotrim_extents_written.
++#	6. Randomly read the previous written file long enough for the
++#		L2ARC vdev to be filled and overwritten.
++#	7. Verify that autotrim_extents_written has increased.
++
++verify_runnable "global"
++
++log_assert "Set 'autotrim=on' verify L2ARC was trimmed"
++
++function cleanup
++{
++	if poolexists $TESTPOOL; then
++		destroy_pool $TESTPOOL
++	fi
++
++	log_must rm -f $TRIM_VDEVS
++
++	log_must set_tunable64 zfs_trim_extent_bytes_min $trim_extent_bytes_min
++	log_must set_tunable64 zfs_trim_txg_batch $trim_txg_batch
++	log_must set_tunable64 zfs_vdev_min_ms_count $vdev_min_ms_count
++}
++log_onexit cleanup
++
++# Minimum trim size is decreased to verify all trim sizes.
++typeset trim_extent_bytes_min=$(get_tunable zfs_trim_extent_bytes_min)
++log_must set_tunable64 zfs_trim_extent_bytes_min 4096
++
++# Reduced zfs_trim_txg_batch to make trimming more frequent.
++typeset trim_txg_batch=$(get_tunable zfs_trim_txg_batch)
++log_must set_tunable64 zfs_trim_txg_batch 8
++
++# Increased metaslabs to better simulate larger more realistic devices.
++typeset vdev_min_ms_count=$(get_tunable zfs_vdev_min_ms_count)
++log_must set_tunable64 zfs_vdev_min_ms_count 32
++
++# The cache device $TRIM_VDEV2 has to be small enough, so that
++# dev->l2ad_hand loops around and dev->l2ad_first=0. Otherwise 
++# l2arc_evict() exits before evicting/trimming.
++VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
++log_must truncate -s $((MINVDEVSIZE)) $TRIM_VDEV2
++log_must truncate -s $((4 * MINVDEVSIZE)) $TRIM_VDEV1
++log_must zpool create -f $TESTPOOL $TRIM_VDEV1 cache $TRIM_VDEV2
++log_must zpool set autotrim=on $TESTPOOL
++
++typeset fill_mb=$(( floor(2 * MINVDEVSIZE) ))
++
++# Write to the pool.
++log_must fio --ioengine=libaio --direct=1 --name=test --bs=2M \
++       --size=$fill_mb --readwrite=randread --runtime=1 --time_based \
++       --iodepth=64 --directory=/$TESTPOOL
++
++# Export and re-import the pool to stop possible trimming on $TRIM_VDEV1.
++log_must zpool export $TESTPOOL
++log_must zpool import -d $TRIM_DIR $TESTPOOL
++
++typeset l2arc_trim_start=$(grep autotrim_extents_written \
++	/proc/spl/kstat/zfs/$TESTPOOL/iostats | \
++	awk '{print $3}')
++
++# Read randomly from the pool to fill L2ARC.
++log_must fio --ioengine=libaio --direct=1 --name=test --bs=2M \
++       --size=$fill_mb --readwrite=randread --runtime=10 --time_based \
++       --iodepth=64 --directory=/$TESTPOOL
++
++typeset l2arc_trim_end=$(grep autotrim_extents_written \
++	/proc/spl/kstat/zfs/$TESTPOOL/iostats | \
++	awk '{print $3}')
++
++log_must test $l2arc_trim_end -gt $l2arc_trim_start
++
++log_must zpool destroy $TESTPOOL
++log_must rm -f $VDEVS
++
++log_pass "Auto trim of L2ARC succeeds."

@@ -1,0 +1,155 @@
+From 47bdf58b09914365765d5c968c9cbb7d57246f51 Mon Sep 17 00:00:00 2001
+From: Thomas Munro <tmunro@freebsd.org>
+Date: Tue, 24 Dec 2019 01:01:13 +1300
+Subject: [PATCH] Add Linux posix_fadvise(..., POSIX_FADV_WILLNEED) support.
+
+Allow user programs to request prefetching of regions of files.  Other
+kinds of advice are ignored for now.
+
+Signed-off-by: Thomas Munro <tmunro@freebsd.org>
+---
+ config/kernel-fadvise.m4         | 19 +++++++++++
+ config/kernel.m4                 |  1 +
+ include/os/linux/spl/sys/fcntl.h |  7 ++++
+ module/os/linux/zfs/zpl_file.c   | 58 ++++++++++++++++++++++++++++++++
+ 4 files changed, 85 insertions(+)
+ create mode 100644 config/kernel-fadvise.m4
+
+diff --git a/config/kernel-fadvise.m4 b/config/kernel-fadvise.m4
+new file mode 100644
+index 00000000000..be06f229988
+--- /dev/null
++++ b/config/kernel-fadvise.m4
+@@ -0,0 +1,19 @@
++dnl #
++dnl # Linux 4.19 API
++dnl #
++AC_DEFUN([ZFS_AC_KERNEL_FADVISE], [
++	AC_MSG_CHECKING([whether fops->fadvise() exists])
++	ZFS_LINUX_TRY_COMPILE([
++		#include <linux/fs.h>
++	],[
++		int (*fadvise) (struct file *, loff_t, loff_t, int) = NULL;
++		struct file_operations fops __attribute__ ((unused)) = {
++			.fadvise = fadvise,
++		};
++	],[
++		AC_MSG_RESULT(yes)
++		AC_DEFINE(HAVE_FADVISE, 1, [fops->fadvise() exists])
++	],[
++		AC_MSG_RESULT(no)
++	])
++])
+diff --git a/config/kernel.m4 b/config/kernel.m4
+index ec8f6a5c107..e46abcb1696 100644
+--- a/config/kernel.m4
++++ b/config/kernel.m4
+@@ -132,6 +132,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
+ 	ZFS_AC_KERNEL_OBJTOOL
+ 	ZFS_AC_KERNEL_PDE_DATA
+ 	ZFS_AC_KERNEL_FALLOCATE
++	ZFS_AC_KERNEL_FADVISE
+ 	ZFS_AC_KERNEL_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
+ 	ZFS_AC_KERNEL_RWSEM
+ 	ZFS_AC_KERNEL_SCHED
+diff --git a/include/os/linux/spl/sys/fcntl.h b/include/os/linux/spl/sys/fcntl.h
+index 3faa5dad78c..8f5a228be7f 100644
+--- a/include/os/linux/spl/sys/fcntl.h
++++ b/include/os/linux/spl/sys/fcntl.h
+@@ -28,6 +28,13 @@
+ 
+ #define	F_FREESP 11
+ 
++#define	POSIX_FADV_NORMAL 0
++#define	POSIX_FADV_RANDOM  1
++#define	POSIX_FADV_SEQUENTIAL 2
++#define	POSIX_FADV_WILLNEED 3
++#define	POSIX_FADV_DONTNEED 4
++#define	POSIX_FADV_NOREUSE 5
++
+ #ifdef CONFIG_64BIT
+ typedef struct flock flock64_t;
+ #else
+diff --git a/module/os/linux/zfs/zpl_file.c b/module/os/linux/zfs/zpl_file.c
+index 0fad63a4ff8..8228dafd507 100644
+--- a/module/os/linux/zfs/zpl_file.c
++++ b/module/os/linux/zfs/zpl_file.c
+@@ -27,6 +27,7 @@
+ #ifdef CONFIG_COMPAT
+ #include <linux/compat.h>
+ #endif
++#include <sys/fcntl.h>
+ #include <sys/file.h>
+ #include <sys/dmu_objset.h>
+ #include <sys/zfs_znode.h>
+@@ -773,6 +774,60 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
+ 	    mode, offset, len);
+ }
+ 
++#ifdef HAVE_FADVISE
++static int
++zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
++{
++	struct inode *ip = file_inode(filp);
++	znode_t *zp = ITOZ(ip);
++	zfsvfs_t *zfsvfs = ITOZSB(ip);
++	objset_t *os = zfsvfs->z_os;
++	int error = 0;
++
++	if (offset < 0 || len < 0) {
++		error = -EINVAL;
++		goto out;
++	}
++
++	if (len == 0) {
++		spl_inode_lock(ip);
++		len = i_size_read(ip) - offset;
++		spl_inode_unlock(ip);
++	}
++
++	ZFS_ENTER(zfsvfs);
++	ZFS_VERIFY_ZP(zp);
++
++	switch (advice) {
++	case POSIX_FADV_WILLNEED:
++		/*
++		 * Pass on the caller's size directly, but note that
++		 * dmu_prefetch_max will effectively cap it.  If there
++		 * really is a larger sequential access pattern, perhaps
++		 * dmu_zfetch will detect it.
++		 */
++		dmu_prefetch(os, zp->z_id, 0, offset, len,
++		    ZIO_PRIORITY_ASYNC_READ);
++		break;
++	case POSIX_FADV_NORMAL:
++	case POSIX_FADV_RANDOM:
++	case POSIX_FADV_SEQUENTIAL:
++	case POSIX_FADV_DONTNEED:
++	case POSIX_FADV_NOREUSE:
++		/* ignored for now */
++		break;
++	default:
++		error = -EINVAL;
++		break;
++	}
++
++	ZFS_EXIT(zfsvfs);
++
++out:
++	return (error);
++}
++#endif /* HAVE_FADVISE */
++
+ #define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL)
+ #define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL)
+ 
+@@ -1008,6 +1063,9 @@ const struct file_operations zpl_file_operations = {
+ 	.aio_fsync	= zpl_aio_fsync,
+ #endif
+ 	.fallocate	= zpl_fallocate,
++#ifdef HAVE_FADVISE
++	.fadvise	= zpl_fadvise,
++#endif
+ 	.unlocked_ioctl	= zpl_ioctl,
+ #ifdef CONFIG_COMPAT
+ 	.compat_ioctl	= zpl_compat_ioctl,

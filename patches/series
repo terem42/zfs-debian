@@ -1,0 +1,36 @@
+#zfs083squashed.patch
+#zfs083_from_hutter_repo.patch
+#zfs-083-hutter1.patch
+#sysctls-for-arc-min-max-ignored-at-runtime.patch
+0001-Prevent-manual-builds-in-the-DKMS-source.patch
+0002-Check-for-META-and-DCH-consistency-in-autoconf.patch
+0003-relocate-zvol_wait.patch
+0010-fix-install-path-of-zpool.d-scripts.patch
+enable-zed.patch
+1004-zed-service-bindir.patch
+init-debian-openrc-workaround.patch
+2100-zfs-load-module.patch
+#2200-add-zfs-0.6.x-ioctl-compat-shim.patch
+#3100-remove-libzfs-module-timeout.patch
+#3302-Use-obj-m-instead-of-subdir-m.patch
+4000-zsys-support.patch
+4500-fix-generator-invalid-cache.patch
+#4501-fix-var-lib-race.patch
+#4600-diff_cb-does-not-handle-large-dnodes.patch
+#force-verbose-rules.patch
+
+#linux-5.0-simd-compat.patch # Causing #940932, see also https://github.com/zfsonlinux/zfs/issues/9346
+#Fix-CONFIG_X86_DEBUG_FPU-build-failure.patch # Contributing to #940932, see also https://github.com/zfsonlinux/zfs/issues/9346
+#etc-defaults-zfs-notice.patch
+#3206-Break-out-of-zfs_zget-early-if-unlinked-znode.patch
+#3207-Check-for-unlinked-znodes-after-igrab.patch
+#initramfs-setup-keymapping-and-video-for-prompts.patch 
+
+9813_KMC_KMEM_disrupts_kv_alloc_memory_alignment_expectations.patch
+#9793_Performance_tests_fio_enhancements.patch
+9807_Add_Linux_posix_fadvise_support.patch
+9749_ICP_Improve_AES_GCM_performance.patch
+9789_Trim_L2ARC.patch
+9739_Fix_zfs_rmnode_unlink_rollback_issue.patch
+#9735_Introduce_ZSTD_compression_to_ZFS.patch
+

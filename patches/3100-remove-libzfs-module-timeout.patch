@@ -1,0 +1,28 @@
+Reduce the timeout to zero seconds when running in a container (LP: #1760173)
+
+When inside a lxd container with zfs storage, zfs list or zpool status
+appears to hang, no output for 10 seconds. Check if we are inside a
+container and set the timeout to zero in this specific case.
+
+---
+
+Index: zfs-linux-0.8.2/lib/libzfs/libzfs_util.c
+===================================================================
+--- zfs-linux-0.8.2.orig/lib/libzfs/libzfs_util.c
++++ zfs-linux-0.8.2/lib/libzfs/libzfs_util.c
+@@ -934,6 +934,15 @@ libzfs_load_module(const char *module)
+ 	int load = 0, fd;
+ 	hrtime_t start;
+ 
++	/*
++	 * If inside a container, set the timeout to zero (LP: #1760173),
++	 * however, this can be over-ridden by ZFS_MODULE_TIMEOUT just
++	 * in case the user explicitly wants to set the timeout for some
++	 * reason just for backward compatibilty
++	 */
++	if (access("/run/systemd/container", R_OK) == 0)
++		timeout = 0;
++
+ 	/* Optionally request module loading */
+ 	if (!libzfs_module_loaded(module)) {
+ 		load_str = getenv("ZFS_MODULE_LOADING");

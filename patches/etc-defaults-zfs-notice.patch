@@ -1,0 +1,19 @@
+Description: add a notice to /etc/defaults/zfs
+Author: lumin@debian.org
+Forwarded: https://github.com/zfsonlinux/zfs/pull/9544
+Index: zfs-linux-0.8.2/etc/init.d/zfs.in
+===================================================================
+--- zfs-linux-0.8.2.orig/etc/init.d/zfs.in
++++ zfs-linux-0.8.2/etc/init.d/zfs.in
+@@ -1,5 +1,11 @@
+ # ZoL userland configuration.
+ 
++# NOTE: This file is intended for sysv init and initramfs.
++# Changing some of these settings may not make any difference on
++# systemd-based setup, e.g. setting ZFS_MOUNT=no will not prevent systemd
++# from launching zfs-mount.service during boot.
++# See: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=901436
++
+ # To enable a boolean setting, set it to yes, on, true, or 1.
+ # Anything else will be interpreted as unset.
+ 

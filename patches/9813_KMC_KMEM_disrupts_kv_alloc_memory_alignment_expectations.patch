@@ -1,0 +1,90 @@
+From 517cf6d4498d362dfcf5568e46d8bf5676a93b08 Mon Sep 17 00:00:00 2001
+From: loli10K <ezomori.nozomu@gmail.com>
+Date: Mon, 6 Jan 2020 09:05:42 +0100
+Subject: [PATCH] KMC_KVMEM disrupts kv_alloc() memory alignment expectations
+
+On kernels with KASAN enabled the following failure can be observed as
+soon as the zfs module is loaded:
+
+  VERIFY(IS_P2ALIGNED(ptr, PAGE_SIZE)) failed
+  PANIC at spl-kmem-cache.c:228:kv_alloc()
+  Showing stack for process 15417
+  CPU: 7 PID: 15417 Comm: spl_kmem_cache Tainted: P    B   W  OE     4.19.93
+  Hardware name: Bochs Bochs, BIOS Bochs 01/01/2011
+  Call Trace:
+   dump_stack+0x8b/0xbb
+   spl_panic+0x142/0x190 [spl]
+   ? spl_dumpstack+0x40/0x40 [spl]
+   ? is_module_text_address+0xa/0x20
+   ? kernel_text_address+0xd9/0xf0
+   ? __list_add_valid+0x77/0xa0
+   ? create_object+0x458/0x4a0
+   ? kasan_unpoison_shadow+0x30/0x40
+   ? kasan_kmalloc+0xa9/0xc0
+   ? kasan_unpoison_shadow+0x30/0x40
+   ? kasan_kmalloc+0xa9/0xc0
+   kv_alloc+0x181/0x190 [spl]
+   ? __spl_cache_grow+0x620/0x620 [spl]
+   __spl_cache_grow+0x78/0x620 [spl]
+   ? firmware_map_remove+0xea/0xea
+   ? __spl_cache_grow+0x620/0x620 [spl]
+   spl_cache_grow_work+0x27/0x50 [spl]
+   taskq_thread+0x741/0xab0 [spl]
+   ? taskq_thread_spawn+0xc0/0xc0 [spl]
+   ? __switch_to_asm+0x35/0x70
+   ...
+
+The problem is kmalloc() has never guaranteed aligned allocations; this
+requirement resulted in zfsonlinux/spl@8b45dda which removed all
+kmalloc() usage in kv_alloc().
+
+Until a GFP_ALIGNED flag (or equivalent functionality) is provided by
+the kernel this commit partially reverts 66955885 and 6d948c35 to
+prevent k(v)malloc() allocations in kv_alloc().
+
+Signed-off-by: loli10K <ezomori.nozomu@gmail.com>
+---
+ module/os/linux/spl/spl-kmem-cache.c | 22 ++--------------------
+ 1 file changed, 2 insertions(+), 20 deletions(-)
+
+diff --git a/module/os/linux/spl/spl-kmem-cache.c b/module/os/linux/spl/spl-kmem-cache.c
+index 4526257185d..7dd8e85436b 100644
+--- a/module/os/linux/spl/spl-kmem-cache.c
++++ b/module/os/linux/spl/spl-kmem-cache.c
+@@ -202,26 +202,8 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
+ 	if (skc->skc_flags & KMC_KMEM) {
+ 		ASSERT(ISP2(size));
+ 		ptr = (void *)__get_free_pages(lflags, get_order(size));
+-	} else if (skc->skc_flags & KMC_KVMEM) {
+-		ptr = spl_kvmalloc(size, lflags);
+ 	} else {
+-		/*
+-		 * GFP_KERNEL allocations can safely use kvmalloc which may
+-		 * improve performance by avoiding a) high latency caused by
+-		 * vmalloc's on-access allocation, b) performance loss due to
+-		 * MMU memory address mapping and c) vmalloc locking overhead.
+-		 * This has the side-effect that the slab statistics will
+-		 * incorrectly report this as a vmem allocation, but that is
+-		 * purely cosmetic.
+-		 *
+-		 * For non-GFP_KERNEL allocations we stick to __vmalloc.
+-		 */
+-		if ((lflags & GFP_KERNEL) == GFP_KERNEL) {
+-			ptr = spl_kvmalloc(size, lflags);
+-		} else {
+-			ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
+-			    PAGE_KERNEL);
+-		}
++		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+ 	}
+ 
+ 	/* Resulting allocated memory will be page aligned */
+@@ -249,7 +231,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
+ 		ASSERT(ISP2(size));
+ 		free_pages((unsigned long)ptr, get_order(size));
+ 	} else {
+-		spl_kmem_free_impl(ptr, size);
++		vfree(ptr);
+ 	}
+ }
+ 

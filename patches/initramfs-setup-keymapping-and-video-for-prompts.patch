@@ -1,0 +1,48 @@
+From c590be624d8eefa396590d381ad7da56825e8b34 Mon Sep 17 00:00:00 2001
+From: Richard Laager <rlaager@wiktel.com>
+Date: Sat, 14 Dec 2019 21:26:07 -0600
+Subject: [PATCH] initramfs: setup keymapping and video for prompts
+
+From Steve Langasek <steve.langasek@canonical.com>:
+> The poorly-named 'FRAMEBUFFER' option in initramfs-tools controls
+> whether the console_setup and plymouth scripts are included and used
+> in the initramfs. These are required for any initramfs which will be
+> prompting for user input: console_setup because without it the user's
+> configured keymap will not be set up, and plymouth because you are
+> not guaranteed to have working video output in the initramfs without
+> it (e.g. some nvidia+UEFI configurations with the default GRUB
+> behavior).
+
+> The zfs initramfs script may need to prompt the user for passphrases
+> for encrypted zfs datasets, and we don't know definitively whether
+> this is the case or not at the time the initramfs is constructed (and
+> it's difficult to dynamically populate initramfs config variables
+> anyway), therefore the zfs-initramfs package should just set
+> FRAMEBUFFER=yes in a conf snippet the same way that the
+> cryptsetup-initramfs package does
+> (/usr/share/initramfs-tools/conf-hooks.d/cryptsetup).
+
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/zfs-linux/+bug/1856408
+
+Signed-off-by: Richard Laager <rlaager@wiktel.com>
+---
+ contrib/initramfs/conf-hooks.d/zfs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/contrib/initramfs/conf-hooks.d/zfs b/contrib/initramfs/conf-hooks.d/zfs
+index 29950cac0..b86d36223 100644
+--- a/contrib/initramfs/conf-hooks.d/zfs
++++ b/contrib/initramfs/conf-hooks.d/zfs
+@@ -1,2 +1,9 @@
+ # Force the inclusion of Busybox in the initramfs.
+ BUSYBOX=y
++
++# Setup the keyboard mapping so passphrases can be entered correctly.
++KEYMAP=y
++
++# Require the plymouth script to guarantee working video for the passphrase
++# prompting.
++FRAMEBUFFER=y
+-- 
+2.20.1
+

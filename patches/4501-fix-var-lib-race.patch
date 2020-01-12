@@ -1,0 +1,40 @@
+Description: Avoid a race when /var/lib is a persistent dataset.
+ If /var/lib is a dataset not under <pool>/ROOT/<root_dataset>, as proposed
+ in the ubuntu root on zfs upstream guide
+ (https://github.com/zfsonlinux/zfs/wiki/Ubuntu-18.04-Root-on-ZFS), we end up
+ with a race where some services, like systemd-random-seed are writing under
+ /var/lib, while zfs-mount is called. zfs mount will then potentially fail
+ because of /var/lib isn't empty and so, can't be mounted.
+ Order those 2 units for now (more may be needed) as we can't declare
+ virtually a provide mount point to match
+ "RequiresMountsFor=/var/lib/systemd/random-seed" from
+ systemd-random-seed.service.
+ The optional generator for zfs 0.8 fixes it, but it's not enabled by default
+ nor necessarily required.
+ .
+ Example:
+ - rpool/ROOT/ubuntu (mountpoint = /)
+ - rpool/var/ (mountpoint = /var)
+ - rpool/var/lib  (mountpoint = /var/lib)
+ .
+ Both zfs-mount.service and systemd-random-seed.service are starting
+ After=systemd-remount-fs.service. zfs-mount.service should be done before
+ local-fs.target while systemd-random-seed.service should finish before
+ sysinit.target (which is a later target).
+ Ideally, we would have a way for zfs mount -a unit to declare all paths or
+ move systemd-random-seed after local-fs.target.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/zfs-linux/+bug/1845298
+Forwarded: https://github.com/zfsonlinux/zfs/pull/9360
+Index: zfs-linux-0.8.1/etc/systemd/system/zfs-mount.service.in
+===================================================================
+--- zfs-linux-0.8.1.orig/etc/systemd/system/zfs-mount.service.in
++++ zfs-linux-0.8.1/etc/systemd/system/zfs-mount.service.in
+@@ -6,6 +6,7 @@ After=systemd-udev-settle.service
+ After=zfs-import.target
+ After=systemd-remount-fs.service
+ Before=local-fs.target
++Before=systemd-random-seed.service
+ 
+ [Service]
+ Type=oneshot

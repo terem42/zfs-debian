@@ -1,0 +1,128 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 Canonical
+# Copyright (C) 2019 Mo Zhou <cdluminate@gmail.com>
+#   
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+echo -n "kernel smoke test, encrypted ZFS filesystems, load/unload keys: "
+TMP=/tmp
+VDEV0=${TMP}/pool0-$$.img
+POOL=pool-smoke-$$
+ZFSFS="test data1"
+PWFILE=${TMP}/key-$$.txt
+
+dd if=/dev/zero of=${VDEV0} bs=1M count=512 > /dev/null 2>&1
+
+zpool create ${POOL} ${VDEV0}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool create failed, exit code=$ret"
+	rm ${VDEV0}
+	exit 1
+fi
+
+#
+# And populate with encrypted ZFS file systems
+#
+echo "pa55w0rd" > $PWFILE
+for fs in ${ZFSFS}
+do
+	zfs create ${POOL}/$fs -o encryption=on \
+		-o keyformat=passphrase -o keylocation=file://$PWFILE
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs create encrypted filesystem $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+	
+	zfs set compression=on ${POOL}/$fs
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs set compression on encrypted $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+
+	zfs umount ${POOL}/$fs
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs umount encrypted $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+
+	zfs unload-key ${POOL}/$fs
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs unload-key from $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+
+	zfs load-key -L file://$PWFILE ${POOL}/$fs
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs load-key for $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+
+	zfs mount ${POOL}/$fs
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs mount encrypted $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+done
+
+#
+# And destroy ZFS file systems
+#
+for fs in ${ZFSFS}
+do
+	zfs destroy ${POOL}/$fs 
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "FAILED: zfs destroy encrypted filesystem $fs failed, exit code=$ret"
+		zpool destroy ${POOL}
+		rm ${VDEV0}
+		exit 1
+	fi
+done
+
+zpool destroy ${POOL}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool destroy failed, exit code=$ret"
+	#
+	# destroy failed, try to clean up, but this
+	# wil probably fail
+	#
+	rm ${VDEV0}
+	exit 1
+fi
+
+rm ${VDEV0} $PWFILE
+echo "PASSED"
+exit 0

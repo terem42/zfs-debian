@@ -1,0 +1,39 @@
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Wed, 17 Jul 2019 09:14:36 -0700
+Subject: Fix CONFIG_X86_DEBUG_FPU build failure
+
+When CONFIG_X86_DEBUG_FPU is defined the alternatives_patched symbol
+is pulled in as a dependency which results in a build failure.  To
+prevent this undefine CONFIG_X86_DEBUG_FPU to disable the WARN_ON_FPU()
+macro and rely on WARN_ON_ONCE debugging checks which were previously
+added.
+
+Reviewed-by: Tony Hutter <hutter2@llnl.gov>
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Closes #9041
+Closes #9049
+(cherry picked from commit 095b5412b31c07cad5cec74a4eb5ace011c92b27)
+---
+ include/linux/simd_x86.h | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/include/linux/simd_x86.h b/include/linux/simd_x86.h
+index 2d7a1c3..5f243e0 100644
+--- a/include/linux/simd_x86.h
++++ b/include/linux/simd_x86.h
+@@ -82,6 +82,15 @@
+ 
+ #if defined(_KERNEL)
+ 
++/*
++ * Disable the WARN_ON_FPU() macro to prevent additional dependencies
++ * when providing the kfpu_* functions.  Relevant warnings are included
++ * as appropriate and are unconditionally enabled.
++ */
++#if defined(CONFIG_X86_DEBUG_FPU) && !defined(KERNEL_EXPORTS_X86_FPU)
++#undef CONFIG_X86_DEBUG_FPU
++#endif
++
+ #if defined(HAVE_KERNEL_FPU_API_HEADER)
+ #include <asm/fpu/api.h>
+ #include <asm/fpu/internal.h>

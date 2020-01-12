@@ -1,0 +1,38 @@
+From 058a10d5172a1681208f467afa687a943a5c09ae Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Tue, 17 Dec 2019 11:17:16 -0800
+Subject: [PATCH] Fix zfs_rmnode() unlink / rollback issue
+
+If a has rollback has occurred while a file is open and unlinked.
+Then when the file is closed post rollback it will not exist in the
+rolled back version of the unlinked object.  Therefore, the call to
+zap_remove_int() may correctly return ENOENT and should be allowed.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+---
+ module/os/linux/zfs/zfs_dir.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/module/os/linux/zfs/zfs_dir.c b/module/os/linux/zfs/zfs_dir.c
+index 5150209c36f..7ebf38ddb62 100644
+--- a/module/os/linux/zfs/zfs_dir.c
++++ b/module/os/linux/zfs/zfs_dir.c
+@@ -739,9 +739,15 @@ zfs_rmnode(znode_t *zp)
+ 		zfs_unlinked_add(xzp, tx);
+ 	}
+ 
+-	/* Remove this znode from the unlinked set */
+-	VERIFY3U(0, ==,
+-	    zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
++	/*
++	 * Remove this znode from the unlinked set.  If a has rollback has
++	 * occurred while a file is open and unlinked.  Then when the file
++	 * is closed post rollback it will not exist in the rolled back
++	 * version of the unlinked object.
++	 */
++	error = zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
++	    zp->z_id, tx);
++	VERIFY(error == 0 || error == ENOENT);
+ 
+ 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
+ 

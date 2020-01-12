@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+getKVERS(){
+	ver="$(ls -1 /usr/src/ | grep -P 'linux-headers-[\d\.]+' | sort -r | head -n1 | sed -e 's@.*linux-headers-\(.*\)-.*@\1@g')"
+	echo "$ver"
+}
+getKVERS_X(){
+	ver="$(ls -1 /usr/src/ | grep -P 'linux-headers-[\d\.]+' | grep -v "common" | sort -r | head -n1 | sed -e 's@.*linux-headers-\(.*\)@\1@')"
+	echo "$ver"
+}
+export KVERS="$(getKVERS)"
+export KVERSX="$(getKVERS_X)"
+export KSRC=/usr/src/linux-headers-$KVERS-common ;
+export KOBJ=/usr/src/linux-headers-$KVERSX ;
+
+echo KVERS=$KVERS
+echo KVERSX=$KVERSX
+echo KSRC=$KSRC
+echo KOBJ=$KOBJ
+fakeroot debian/rules override_dh_binary-modules KVERS=$KVERS KSRC=$KSRC KOBJ=$KOBJ

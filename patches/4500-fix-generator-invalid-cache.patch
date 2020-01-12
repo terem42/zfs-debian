@@ -1,0 +1,54 @@
+Description: Regenerate cache file if empty
+ There is a race between empty cache file for the mount generator
+ and fstab which contains /boot/grub.
+ With zfs on root, the generator is the only solution to avoid races.
+ However in 0.8 it misses cache invalidation (when rollbacking or booting
+ on other datasets).
+ This is a workaround for the first boot with empty files to ensure we
+ initialize it properly. A more complete work on cache invalidation needs
+ to be done upstream.
+Author: Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/zfs-linux/+bug/1845606
+Forwarded: Not-needed
+Index: zfs-linux-0.8.2/etc/systemd/system-generators/zfs-mount-generator.in
+===================================================================
+--- zfs-linux-0.8.2.orig/etc/systemd/system-generators/zfs-mount-generator.in
++++ zfs-linux-0.8.2/etc/systemd/system-generators/zfs-mount-generator.in
+@@ -269,6 +269,9 @@ on_exit() {
+     done
+ }
+ 
++PROPS="name,mountpoint,canmount,atime,relatime,devices,exec,readonly"
++PROPS="${PROPS},setuid,nbmand"
++
+ # TODO: we should move that in its own script, and use a systemd service as a fallback.
+ # We need to condition this on current vs previous dataset (across the whole system), so
+ # in /boot.
+@@ -286,9 +289,6 @@ initzsys() {
+   all_pools="$(zpool list | awk '{if (NR>1) print $1}')"
+   ${ZSYS} boot prepare
+ 
+-  PROPS="name,mountpoint,canmount,atime,relatime,devices,exec,readonly"
+-  PROPS="${PROPS},setuid,nbmand"
+-
+   for cachefile in "${FSLIST}/"* ; do
+     pool=`basename $cachefile`
+     fs_pools="${fs_pools} ${pool}"
+@@ -300,6 +300,17 @@ initzsys
+ 
+ # Feed each line into process_line
+ for cachefile in "${FSLIST}/"* ; do
++  # FIXME: we need to ensure that pools are imported because some pools, like 
++  # bpool, should be imported and mounted before /boot/grub (via fstab).
++  # For some reasons, the bpool isn't imported (not in cache).
++  pool=`basename ${cachefile}`
++  ${ZPOOL} import "${pool}" || true
++
++  # If the cache file is empty for a pool, reload it
++  if [ ! -s "${cachefile}" ]; then
++    ${ZFS} list -H -t filesystem -o $PROPS -r "${pool}" > "${cachefile}"
++  fi
++
+   while read -r fs ; do
+     process_line "${fs}"
+   done < "${cachefile}"
