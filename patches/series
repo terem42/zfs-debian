@@ -26,7 +26,7 @@ init-debian-openrc-workaround.patch
 #3207-Check-for-unlinked-znodes-after-igrab.patch
 #initramfs-setup-keymapping-and-video-for-prompts.patch 
 
-9813_KMC_KMEM_disrupts_kv_alloc_memory_alignment_expectations.patch
+#9813_KMC_KMEM_disrupts_kv_alloc_memory_alignment_expectations.patch
 #9793_Performance_tests_fio_enhancements.patch
 9807_Add_Linux_posix_fadvise_support.patch
 9749_ICP_Improve_AES_GCM_performance.patch
