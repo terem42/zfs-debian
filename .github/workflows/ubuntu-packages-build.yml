@@ -1,0 +1,192 @@
+name: Build ZFS packages for ubuntu 18.04
+on: push
+jobs:
+  build:
+    name: Building packages
+    runs-on: ubuntu-18.04
+    steps:
+      - name: clone zfs upstream repo
+        shell: bash
+        run: |
+          mkdir ~/zfs && cd ~/zfs
+          git init
+          git fetch https://github.com/zfsonlinux/zfs.git refs/heads/master --depth=1
+          git checkout FETCH_HEAD
+      - name: clone our zfs ubuntu repo
+        shell: bash
+        run: |
+          echo "ref triggered = ${{ github.ref }}"
+          mkdir ~/zfs/debian && cd ~/zfs/debian
+          git init
+          git fetch https://github.com/${{ github.repository }}.git ${{ github.ref }} --depth=1
+          git checkout FETCH_HEAD
+      - name: list folders
+        shell: bash
+        run: |
+          cd ~/zfs
+          echo "main folder"
+          ls -al ./
+          echo "debian folder"
+          ls -al ./debian
+          echo "current folder"
+          pwd
+      - name: retrieve build packages
+        shell: bash
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install dpkg-dev alien autoconf automake build-essential dkms fakeroot gawk gdebi-core libacl1-dev libaio-dev libattr1-dev libblkid-dev libdevmapper-dev libelf-dev libselinux-dev libssl-dev libtool libudev-dev nfs-kernel-server python3 python3-dev python3-cffi python3-setuptools uuid-dev zlib1g-dev linux-headers-$(uname -r) python3-all-dev python3-sphinx
+      - name: build zfs packages
+        shell: bash
+        run: |
+          echo "current folder"
+          pwd
+          cd ~/zfs
+          ls ./debian/changelog
+          dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
+          mkdir ./zfs-deb-packages
+          cp ../*.deb ./zfs-deb-packages
+          ls ./zfs-deb-packages -al
+      - name: cache created packages
+        uses: actions/cache@v1
+        with:
+          path: ~/zfs/zfs-deb-packages
+          key: ${{ runner.OS }}-zfs-${{ github.sha }}
+  test:
+    needs: build
+    name: Testing packages
+    runs-on: ubuntu-18.04
+    strategy:
+      fail-fast: false
+      matrix:
+        testbatch:
+          - fault
+          - zpool_expand
+          - zpool_reopen
+          - mmp
+#          - 'acl,atime,bootfs,cachefile,casenorm,chattr,checksum,clean_mirror,compression,ctime,delegate,devices,events,exec,fault,features,grow_pool'
+#          - 'cache,history,hkdf,inuse,zfs_property,zfs_receive,zfs_reservation,zfs_send,zfs_set,zfs_share,zfs_snapshot,zfs_unload-key,zfs_unmount,zfs_unshare,zfs_upgrade,zpool,zpool_add,zpool_attach,zpool_clear,zpool_create,zpool_destroy,zpool_detach'
+#          - 'grow_replicas,mv_files,cli_user,zfs_mount,zfs_promote,zfs_rollback,zpool_events,zpool_expand,zpool_export'
+#          - 'zpool_get,zpool_history,zpool_import,zpool_labelclear,zpool_offline,zpool_online'
+#          - 'zpool_remove,zpool_reopen,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade'
+#          - 'zfs_destroy,large_files,largest_pool,link_count,migration,inheritance,refquota,refreserv,rename_dirs,replacement,reservation,rootpool,scrub_mirror'
+#          - 'zdb,zfs,zfs_bookmark,zfs_change-key,zfs_clone,zfs_copies,zfs_create,zfs_diff,zfs_get,zfs_inherit,zfs_load-key,zfs_rename'
+#          - 'mmap,mmp,mount,nestedfs,no_space,nopwrite,online_offline,pool_names,poolversion,privilege,quota,raidz,redundancy,rsend'
+#          - 'slog,snapshot,snapused,sparse,threadsappend,tmpfile,truncate,upgrade,userquota,vdev_zaps,write_dirs,xattr,zvol,libzfs'
+    steps:
+      - name: Restore cached packages
+        uses: actions/cache@v1
+        with:
+          path: ./zfs-deb-packages
+          key: ${{ runner.OS }}-zfs-${{ github.sha }}
+      - name: setup local repo and put earlier-built ZFS packages there
+        shell: bash
+        run: |
+          cd ./zfs-deb-packages
+          ls ./ -alt
+          pwd
+          sudo bash -c "dpkg-scanpackages -m . > Packages"
+          sudo bash -c "echo 'deb [trusted=yes] file:$(pwd) ./' >> /etc/apt/sources.list"
+          cat /etc/apt/sources.list
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq update
+      - name: install earlier-built ZFS packages along with packages required for conducting tests
+        shell: bash
+        run: |
+          sudo bash -c "echo \"zfs-dkms zfs-dkms/note-incompatible-licenses note true\" | debconf-set-selections"
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install zfs-dkms zfsutils-linux zfs-zed zfs-test parted lsscsi ksh attr acl fio quota nfs-kernel-server samba-common-bin linux-tools-generic linux-tools-$(uname -r)
+      - name: run tests
+        shell: bash
+        run: |
+          /usr/share/zfs/zfs-tests.sh -v -T ${{ matrix.testbatch }}
+      - name: show test output on failure
+        if: failure() || success()
+        shell: bash
+        run: |
+          find /var/tmp/test_results/current/log -type f -name '*' -printf "%f\n" -exec cut -c -800 {} \;
+  deploy:
+    needs: test
+    name: Deploying artefacts
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Restore cached packages
+        uses: actions/cache@v1
+        with:
+          path: ./zfs-deb-packages
+          key: ${{ runner.OS }}-zfs-${{ github.sha }}
+      - name: adding required packages for repo publishing
+        shell: bash
+        run: |
+          sudo bash -c "echo 'deb http://repo.aptly.info/ squeeze main' >> /etc/apt/sources.list"
+          wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install gnupg aptly
+      - name: create repo and add packages
+        shell: bash
+        run: |
+          aptly repo create -distribution="bionic" -component="zfs-backports-experimental" zfs-backports-experimental
+          sed -i 's/\"architectures\": \[\]/\"architectures\": \[\"amd64\"\]/g' ~/.aptly.conf
+          echo -n "${{ secrets.GPG_KEY }}" > ./apt-private-key.asc
+          echo ${{ secrets.GPG_PASS }} | gpg --batch --import ./apt-private-key.asc
+          rm -rf ./apt-private-key.asc
+          ls ./zfs-deb-packages/*.deb -1 | xargs aptly repo add zfs-backports-experimental
+          aptly publish repo --gpg-key="74191A3222C2FFD5" --batch=true --passphrase="${{ secrets.GPG_PASS }}" zfs-backports-experimental
+          rm -rf ./zfs-deb-packages
+      - uses: actions/checkout@v2
+        with:
+          ref: gh-pages
+      - name: push updates
+        shell: bash
+        run: |2
+          git config --global user.email "$(git log -n 1 --format=format:%ae)"
+          git config --global user.name "$(git log -n 1 --format=format:%an)"
+          rm ./public -rf
+          cp -r /home/runner/.aptly/public ./
+          export PAGE_FOOTER_DATE_TAG=$(date -Is)
+          sed -i -E "s/(<span class=\"datetag\">)[^<]*(<\/span>)/\1${PAGE_FOOTER_DATE_TAG}\2/" ./index.html
+          python - <<END
+          import os
+          indexTextStart = """<!DOCTYPE html>
+          <html>
+          <head><title>Index of {folderPath}</title></head>
+          <body>
+              <h2>Index of {folderPath}</h2>
+              <hr>
+              <ul>
+                          <li>
+                        <a href='../'>../</a>
+                 </li>
+          """
+          indexTextEnd = """
+                  </ul>
+          <hr/>
+          <p>Page generated: ${PAGE_FOOTER_DATE_TAG}</p>
+          </body>
+          </html>
+          """
+          def index_folder(folderPath):
+              print("Indexing: " + folderPath +'/')
+              #Getting the content of the folder
+              files = os.listdir(folderPath)
+              #If Root folder, correcting folder name
+              root = folderPath
+              if folderPath == '.':
+                      root = 'Root'
+              indexText = indexTextStart.format(folderPath=root)
+              for file in files:
+                      #Avoiding index.html files
+                      if file != 'index.html':
+                              indexText += "\t\t<li>\n\t\t\t<a href='" + file + "'>" + file + "</a>\n\t\t</li>\n"
+                      #Recursive call to continue indexing
+                      if os.path.isdir(folderPath+'/'+file):
+                              index_folder(folderPath + '/' + file)
+              indexText += indexTextEnd
+              index = open(folderPath+'/index.html', "w")
+              index.write(indexText)
+          index_folder('./public')
+          END
+          rm -rf ./.git
+          git init
+          git checkout --orphan "gh-pages"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git"
+          git add --all
+          git commit -am "automatic pages update from ${{ github.ref }} commit ${{ github.sha }}"
+          git push --force --set-upstream origin gh-pages
