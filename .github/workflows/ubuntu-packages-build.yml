@@ -59,19 +59,19 @@ jobs:
       fail-fast: false
       matrix:
         testbatch:
-          - fault
-          - zpool_expand
-          - zpool_reopen
-          - mmp
-#          - 'acl,atime,bootfs,cachefile,casenorm,chattr,checksum,clean_mirror,compression,ctime,delegate,devices,events,exec,fault,features,grow_pool'
-#          - 'cache,history,hkdf,inuse,zfs_property,zfs_receive,zfs_reservation,zfs_send,zfs_set,zfs_share,zfs_snapshot,zfs_unload-key,zfs_unmount,zfs_unshare,zfs_upgrade,zpool,zpool_add,zpool_attach,zpool_clear,zpool_create,zpool_destroy,zpool_detach'
-#          - 'grow_replicas,mv_files,cli_user,zfs_mount,zfs_promote,zfs_rollback,zpool_events,zpool_expand,zpool_export'
-#          - 'zpool_get,zpool_history,zpool_import,zpool_labelclear,zpool_offline,zpool_online'
-#          - 'zpool_remove,zpool_reopen,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade'
-#          - 'zfs_destroy,large_files,largest_pool,link_count,migration,inheritance,refquota,refreserv,rename_dirs,replacement,reservation,rootpool,scrub_mirror'
-#          - 'zdb,zfs,zfs_bookmark,zfs_change-key,zfs_clone,zfs_copies,zfs_create,zfs_diff,zfs_get,zfs_inherit,zfs_load-key,zfs_rename'
-#          - 'mmap,mmp,mount,nestedfs,no_space,nopwrite,online_offline,pool_names,poolversion,privilege,quota,raidz,redundancy,rsend'
-#          - 'slog,snapshot,snapused,sparse,threadsappend,tmpfile,truncate,upgrade,userquota,vdev_zaps,write_dirs,xattr,zvol,libzfs'
+#          - fault
+#          - zpool_expand
+#          - zpool_reopen
+#          - mmp
+          - 'acl,atime,bootfs,cachefile,casenorm,chattr,checksum,clean_mirror,compression,ctime,delegate,devices,events,exec,fault,features,grow_pool'
+          - 'cache,history,hkdf,inuse,zfs_property,zfs_receive,zfs_reservation,zfs_send,zfs_set,zfs_share,zfs_snapshot,zfs_unload-key,zfs_unmount,zfs_unshare,zfs_upgrade,zpool,zpool_add,zpool_attach,zpool_clear,zpool_create,zpool_destroy,zpool_detach'
+          - 'grow_replicas,mv_files,cli_user,zfs_mount,zfs_promote,zfs_rollback,zpool_events,zpool_expand,zpool_export'
+          - 'zpool_get,zpool_history,zpool_import,zpool_labelclear,zpool_offline,zpool_online'
+          - 'zpool_remove,zpool_reopen,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade'
+          - 'zfs_destroy,large_files,largest_pool,link_count,migration,inheritance,refquota,refreserv,rename_dirs,replacement,reservation,rootpool,scrub_mirror'
+          - 'zdb,zfs,zfs_bookmark,zfs_change-key,zfs_clone,zfs_copies,zfs_create,zfs_diff,zfs_get,zfs_inherit,zfs_load-key,zfs_rename'
+          - 'mmap,mmp,mount,nestedfs,no_space,nopwrite,online_offline,pool_names,poolversion,privilege,quota,raidz,redundancy,rsend'
+          - 'slog,snapshot,snapused,sparse,threadsappend,tmpfile,truncate,upgrade,userquota,vdev_zaps,write_dirs,xattr,zvol,libzfs'
     steps:
       - name: Restore cached packages
         uses: actions/cache@v1
