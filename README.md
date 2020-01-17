@@ -3,9 +3,8 @@
 This is a repository for building and deploying Debian packages for ZFS on Linux, 
 using latest master branch and patches to it, listed in patches/series folder.
 
-Attached to this repository exist a Github actions workflow, which upon each master push checks out upstream repo
-then applies patches, builds, tests and upon tests success, deploys  built and tested packages into tiny APT repository 
-using Gihub Pages.
+Attached to this repository exist a Github actions workflow located [here](blob/master/.github/workflows/ubuntu-packages-build.yml), which upon each master commit, checks out [ZFS upstream repo](https://github.com/zfsonlinux/zfs) 
+then applies patches, builds, tests and upon tests success, deploys  built and tested debian binary packages into tiny fully functional APT repository, created using Gihub Pages.
 
 You can later reference this repository in your deployments or fork this repo (insructions below) and build your custom version of packages, having all the beeding edge changes you want. This approach gives you complete freedom over the building 
 version and applied patches over the source code, while still being guided by master branch steam from official repo.
