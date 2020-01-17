@@ -3,7 +3,6 @@ on:
   push:
     branches:    
       - master
-      - binarypkg
 jobs:
   build:
     name: Building packages
