@@ -32,7 +32,7 @@ Next, install packages from this repo:
 ````
 sudo add-apt-repository 'deb https://andrey42.github.io/zfs-ubuntu/public bionic zfs-backports-experimental'
 sudo bash -c "echo \"zfs-dkms zfs-dkms/note-incompatible-licenses note true\" | debconf-set-selections"
-sudo apt install --yes zfs-dkms zfsutils-linux 
+sudo apt install --yes zfs-dkms zfsutils-linux  
 ````
 
 # Forking the repo
