@@ -1,5 +1,8 @@
-name: Build ZFS packages for ubuntu 18.04
-on: push
+name: Build test and deploy ZFS packages for Ubuntu 18.04 and later
+on:
+  push:
+    branches:    
+      - master
 jobs:
   build:
     name: Building packages
@@ -104,7 +107,7 @@ jobs:
           find /var/tmp/test_results/current/log -type f -name '*' -printf "%f\n" -exec cut -c -800 {} \;
   deploy:
     needs: test
-    name: Deploying artefacts
+    name: Deploying artefacts to debian repository
     runs-on: ubuntu-18.04
     steps:
       - name: Restore cached packages
@@ -164,18 +167,14 @@ jobs:
           """
           def index_folder(folderPath):
               print("Indexing: " + folderPath +'/')
-              #Getting the content of the folder
               files = os.listdir(folderPath)
-              #If Root folder, correcting folder name
               root = folderPath
               if folderPath == '.':
                       root = 'Root'
               indexText = indexTextStart.format(folderPath=root)
               for file in files:
-                      #Avoiding index.html files
                       if file != 'index.html':
                               indexText += "\t\t<li>\n\t\t\t<a href='" + file + "'>" + file + "</a>\n\t\t</li>\n"
-                      #Recursive call to continue indexing
                       if os.path.isdir(folderPath+'/'+file):
                               index_folder(folderPath + '/' + file)
               indexText += indexTextEnd
