@@ -34,5 +34,5 @@ init-debian-openrc-workaround.patch
 9739_Fix_zfs_rmnode_unlink_rollback_issue.patch
 #9735_Introduce_ZSTD_compression_to_ZFS.patch
 
-#0001terem-zed-service-start-stop-fix-for-tests-conducted-using.patch
+0001terem-zed-service-start-stop-fix-for-tests-conducted-using.patch
 0002terem-added-known-to-skip-tests-on-github-worflow-vm.patch
