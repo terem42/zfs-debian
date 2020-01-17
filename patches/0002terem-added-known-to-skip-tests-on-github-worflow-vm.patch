@@ -1,0 +1,67 @@
+From d2f93fc4f557faf7e5a64fa9aea3dcbed62af18c Mon Sep 17 00:00:00 2001
+From: Andrey Prokopenko <andrey.prokopenko@allianz.at>
+Date: Fri, 17 Jan 2020 15:37:05 +0100
+Subject: [PATCH] added known to skip tests on github worflow vm
+
+---
+ tests/test-runner/bin/zts-report.py | 37 +++++++++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/tests/test-runner/bin/zts-report.py b/tests/test-runner/bin/zts-report.py
+index b61a1fde5..7f53bc2c6 100755
+--- a/tests/test-runner/bin/zts-report.py
++++ b/tests/test-runner/bin/zts-report.py
+@@ -127,6 +127,9 @@ trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
+ #
+ na_reason = "N/A on Linux"
+ 
++# cannot propery execute on Github Actions
++github_actions_vm_skip_reason = 'known to be skipped on Github Actions virtual machines'
++
+ summary = {
+     'total': float(0),
+     'passed': float(0),
+@@ -168,6 +171,40 @@ known = {
+     'zvol/zvol_swap/zvol_swap_003_pos': ['SKIP', na_reason],
+     'zvol/zvol_swap/zvol_swap_005_pos': ['SKIP', na_reason],
+     'zvol/zvol_swap/zvol_swap_006_pos': ['SKIP', na_reason],
++
++    'fault/auto_offline_001_pos': ['SKIP',github_actions_vm_skip_reason],
++    'fault/auto_online_001_pos': ['SKIP',github_actions_vm_skip_reason],
++    'fault/auto_replace_001_pos': ['SKIP',github_actions_vm_skip_reason],
++    'fault/auto_spare_ashift': ['SKIP',github_actions_vm_skip_reason],
++    'fault/auto_spare_shared': ['SKIP',github_actions_vm_skip_reason],
++
++    'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP',github_actions_vm_skip_reason],
++
++    'cli_root/zpool_reopen/setup': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_001_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_002_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_003_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_004_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_005_pos': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP',github_actions_vm_skip_reason],
++    'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP',github_actions_vm_skip_reason],
++
++    'mmp/mmp_active_import': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_exported_import': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_hostid': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_inactive_import': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_interval': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_on_off': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_on_thread': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_on_uberblocks': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_on_zdb': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_reset_interval': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_write_distribution': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/mmp_write_uberblocks': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/multihost_history': ['SKIP',github_actions_vm_skip_reason],
++    'mmp/setup': ['SKIP',github_actions_vm_skip_reason],
+ }
+ 
+ #
+-- 
+2.22.0.windows.1
+
