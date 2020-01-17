@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           sudo bash -c "echo \"zfs-dkms zfs-dkms/note-incompatible-licenses note true\" | debconf-set-selections"
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install zfs-dkms zfsutils-linux zfs-zed zfs-test parted lsscsi ksh attr acl fio quota nfs-kernel-server samba-common-bin linux-tools-generic linux-tools-$(uname -r)
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install zfs-dkms zfsutils-linux zfs-zed zfs-test parted lsscsi ksh attr acl fio quota nfs-kernel-server samba-common-bin linux-tools-generic linux-tools-$(uname -r)-azure linux-cloud-tools-$(uname -r)-azure
       - name: run tests
         shell: bash
         run: |
