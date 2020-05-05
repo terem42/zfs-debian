@@ -1,0 +1,24 @@
+From 53903b2732526c8121ca9fe7923e70f24d7c4d24 Mon Sep 17 00:00:00 2001
+From: Andrey Prokopenko <9478806+andrey42@users.noreply.github.com>
+Date: Wed, 10 Jun 2020 23:01:21 +0200
+Subject: [PATCH] This commit closes issue 10434, where the hook for zfsunlock
+ would complain that /usr/bin was not a directory, causing the hook to fail.
+
+Signed-off-by:	Andrey Prokopenko <job@terem.fr>
+---
+ contrib/initramfs/hooks/zfsunlock.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/initramfs/hooks/zfsunlock.in b/contrib/initramfs/hooks/zfsunlock.in
+index c8ae86363..28bc86032 100644
+--- a/contrib/initramfs/hooks/zfsunlock.in
++++ b/contrib/initramfs/hooks/zfsunlock.in
+@@ -15,4 +15,4 @@ esac
+ 
+ . /usr/share/initramfs-tools/hook-functions
+ 
+-copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin
++copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/
+-- 
+2.17.1
+

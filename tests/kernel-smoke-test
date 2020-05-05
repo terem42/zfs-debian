@@ -1,0 +1,109 @@
+#!/bin/sh 
+#
+# Copyright (C) 2016 Canonical
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+#
+# We run all the tests in this specific order from this
+# main script so that we don't have to go through the
+# pain of checking and rebuilding installing and removing
+# the modules for each test.  A good smoke test will
+# exercise all the base functionality with the same
+# instance of the ZFS spl and zfs drivers to see what
+# the cumulative testing of each scenario does to the
+# environment.
+#
+LSMOD=/sbin/lsmod
+RMMOD=/sbin/rmmod
+MODPROBE=/sbin/modprobe
+TESTS="kernel-smoke-test-pool-2x2-mirror kernel-smoke-test-pool-4x1-mirror kernel-smoke-test-pool-nested-raidz3 kernel-smoke-test-pool-raidz1 kernel-smoke-test-pool-raidz2 kernel-smoke-test-pool-raidz3 kernel-smoke-test-pool-striped kernel-smoke-test-zil kernel-smoke-test-filesystem kernel-smoke-test-snapshot kernel-smoke-test-clone kernel-smoke-test-send-receive kernel-smoke-test-scrub kernel-smoke-test-encryption"
+rc=0
+#
+#  We only test on 64 bit arches for the moment
+#  as these are the ones that ZFS supports.
+#
+if [ `getconf LONG_BIT` = "32" ]
+then
+	echo "Testing on 32 bit architectures not possible."
+	exit 0
+fi
+
+#
+#  Remove a module if it is loaded
+#
+rm_mod()
+{
+	loaded=$($LSMOD | grep "^$1")
+	if [ ! -z "$loaded" ]; then
+		echo "Unloading $1"
+		$RMMOD $1
+	fi
+}
+
+#
+#  Recursively find module dependencies and remove these modules
+#
+rm_mod_dep()
+(
+	mod=$1
+	n=0
+	deps=""
+
+	while true
+	do
+		deps=$($LSMOD | grep "^$mod" | awk '{ print $4 }' | tr ',' ' ')
+		if [ -z "$deps" ]; then
+			rm_mod $mod
+			return 0
+		else
+			for dep in $deps
+			do
+				rm_mod_dep $dep
+				if [ $? -ne 0 ]; then
+					return 1
+				fi
+			done
+		fi
+		n=$((n + 1))
+		if [ $n -gt 20 ]; then
+			echo "Cannot remove $mod or a dependency module $deps"
+			return 1
+		fi
+	done
+	return 0
+)
+
+#
+#  need to stop zed to remove previous zfs
+#
+systemctl stop zfs-zed.service
+
+echo "Removing existing zfs modules"
+rm_mod_dep zfs
+rm_mod_dep spl
+
+# Load zfs kernel module before tests
+echo "Loading new zfs modules"
+$MODPROBE zfs
+
+for t in ${TESTS}
+do
+	./debian/tests/$t
+	if [ $? -ne 0 ]; then
+		rc=1
+	fi
+done
+exit $rc

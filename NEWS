@@ -1,0 +1,38 @@
+zfs-linux (0.8.0-1) experimental; urgency=medium
+
+  ZFS 0.8.0 introduced the following NEW features:
+
+    * Native encryption
+    * Raw encrypted 'zfs send/receive'
+    * Device removal
+    * Pool checkpoints
+    * Pool TRIM
+    * Pool initialization
+    * Project accounting and quota
+    * Channel programs
+    * Pyzfs
+    * Python 3 compatibility
+    * Direct IO
+
+  And the following performance improvements:
+
+    * Sequential scrub and resilver
+    * Allocation classes
+    * Administrative commands
+    * Parallel allocation
+    * Deferred resilvers
+    * ZFS Intent Log (ZIL)
+    * Volumes
+    * QAT
+
+  Details about the features and performance improvements can be found at:
+
+    https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.8.0
+
+  NEWS on the Debian packaging side:
+
+    * ZFS doesn't depend on the spl-dkms package anymore, because
+      upstream had merged SPL source into ZFS source tree, and that
+      module is now included in the zfs-dkms package.
+
+ -- Mo Zhou <cdluminate@gmail.com>  Fri, 24 May 2019 03:27:43 +0000

@@ -1,0 +1,2 @@
+version=4
+https://zfsonlinux.org/ .*zfs-([\d\.]+)\.tar\.gz$ debian uupdate

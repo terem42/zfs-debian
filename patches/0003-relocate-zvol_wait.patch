@@ -1,0 +1,13 @@
+Description: relocate the executable path
+Forwarded: no need
+--- a/etc/systemd/system/zfs-volume-wait.service.in
++++ b/etc/systemd/system/zfs-volume-wait.service.in
+@@ -7,7 +7,7 @@
+ [Service]
+ Type=oneshot
+ RemainAfterExit=yes
+-ExecStart=@bindir@/zvol_wait
++ExecStart=/sbin/zvol_wait
+ 
+ [Install]
+ WantedBy=zfs-volumes.target

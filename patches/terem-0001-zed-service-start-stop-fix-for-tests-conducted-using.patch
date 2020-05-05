@@ -1,0 +1,149 @@
+From d3f4581cdb38007c36bb0fb8ae5640ce09ddfc47 Mon Sep 17 00:00:00 2001
+From: Andrey Prokopenko <9478806+andrey42@users.noreply.github.com>
+Date: Thu, 16 Jan 2020 20:10:48 +0100
+Subject: [PATCH] zed service start stop fix for tests conducted using ubuntu
+ packages
+
+---
+ tests/zfs-tests/include/commands.cfg                   |  2 ++
+ tests/zfs-tests/include/libtest.shlib                  | 10 ++++++++++
+ .../cli_root/zpool_reopen/zpool_reopen_001_pos.ksh     |  6 +++---
+ .../cli_root/zpool_reopen/zpool_reopen_002_pos.ksh     |  6 +++---
+ .../cli_root/zpool_reopen/zpool_reopen_003_pos.ksh     |  2 +-
+ .../cli_root/zpool_reopen/zpool_reopen_004_pos.ksh     |  2 +-
+ .../cli_root/zpool_reopen/zpool_reopen_005_pos.ksh     |  2 +-
+ 7 files changed, 21 insertions(+), 9 deletions(-)
+
+diff --git a/tests/zfs-tests/include/commands.cfg b/tests/zfs-tests/include/commands.cfg
+index 9d1fd8975..12772318e 100644
+--- a/tests/zfs-tests/include/commands.cfg
++++ b/tests/zfs-tests/include/commands.cfg
+@@ -165,6 +165,8 @@ export SYSTEM_FILES_LINUX='attr
+     udevadm
+     useradd
+     userdel
++    service
++    systemctl
+     usermod'
+ 
+ export ZFS_FILES='zdb
+diff --git a/tests/zfs-tests/include/libtest.shlib b/tests/zfs-tests/include/libtest.shlib
+index d9ba374f2..43a2521c5 100644
+--- a/tests/zfs-tests/include/libtest.shlib
++++ b/tests/zfs-tests/include/libtest.shlib
+@@ -3505,6 +3505,11 @@ function zed_setup
+ 		log_unsupported "No zed on $(uname)"
+ 	fi
+ 
++        #stop ZED service if it is installed
++        if (( $(service zed status > /dev/null 2>&1;echo -n $?) < 4 )); then
++          log_must service zed stop
++        fi
++
+ 	if [[ ! -d $ZEDLET_DIR ]]; then
+ 		log_must mkdir $ZEDLET_DIR
+ 	fi
+@@ -3569,6 +3574,11 @@ function zed_cleanup
+ 	log_must rm -f $VDEVID_CONF_ETC
+ 	log_must rm -f $VDEVID_CONF
+ 	rmdir $ZEDLET_DIR
++
++        #start ZED service if it is installed
++        if (( $(service zed status > /dev/null 2>&1;echo -n $?) < 4 )); then
++          log_must service zed start
++        fi
+ }
+ 
+ #
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_001_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_001_pos.ksh
+index 68ebf669c..c381c8d86 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_001_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_001_pos.ksh
+@@ -24,7 +24,7 @@
+ # STRATEGY:
+ # 1. Create a pool.
+ # 2. Remove a disk.
+-# 3. Reopen a pool and verify if removed disk is marked as unavailable.
++# 3. Reopen a pool and verify if removed disk is marked as offline.
+ # 4. "Plug back" disk.
+ # 5. Reopen a pool and verify if removed disk is marked online again.
+ # 6. Check if reopen caused resilver start.
+@@ -50,9 +50,9 @@ scsi_host=$(get_scsi_host $REMOVED_DISK)
+ default_mirror_setup_noexit $REMOVED_DISK_ID $DISK2
+ # 2. Remove a disk.
+ remove_disk $REMOVED_DISK
+-# 3. Reopen a pool and verify if removed disk is marked as unavailable.
++# 3. Reopen a pool and verify if removed disk is marked as offline.
+ log_must zpool reopen
+-log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
++log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "offline"
+ # Write some data to the pool
+ log_must generate_random_file /$TESTPOOL/data $SMALL_FILE_SIZE
+ # 4. "Plug back" disk.
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_002_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_002_pos.ksh
+index 444c8a685..a7bdc1081 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_002_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_002_pos.ksh
+@@ -24,7 +24,7 @@
+ # STRATEGY:
+ # 1. Create a pool.
+ # 2. Remove a disk.
+-# 3. Reopen a pool and verify if removed disk is marked as unavailable.
++# 3. Reopen a pool and verify if removed disk is marked as ofline.
+ # 4. "Plug back" disk.
+ # 5. Reopen a pool and verify if removed disk is marked online again.
+ # 6. Check if reopen caused resilver start.
+@@ -50,9 +50,9 @@ scsi_host=$(get_scsi_host $REMOVED_DISK)
+ default_mirror_setup_noexit $REMOVED_DISK_ID $DISK2
+ # 2. Remove a disk.
+ remove_disk $REMOVED_DISK
+-# 3. Reopen a pool and verify if removed disk is marked as unavailable.
++# 3. Reopen a pool and verify if removed disk is marked as offline.
+ log_must zpool reopen $TESTPOOL
+-log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
++log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "offline"
+ # Write some data to the pool
+ log_must generate_random_file /$TESTPOOL/data $SMALL_FILE_SIZE
+ # 4. "Plug back" disk.
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_003_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_003_pos.ksh
+index 097dd3c71..faf43c6df 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_003_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_003_pos.ksh
+@@ -59,7 +59,7 @@ default_mirror_setup_noexit $REMOVED_DISK_ID $DISK2
+ remove_disk $REMOVED_DISK
+ 
+ log_must zpool reopen $TESTPOOL
+-log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
++log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "offline"
+ 
+ # 3. Write a test file to the pool and calculate its checksum.
+ TESTFILE=/$TESTPOOL/data
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_004_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_004_pos.ksh
+index 956ceebaf..3e45422e6 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_004_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_004_pos.ksh
+@@ -59,7 +59,7 @@ default_mirror_setup_noexit $REMOVED_DISK_ID $DISK2
+ # 2. Remove a disk.
+ remove_disk $REMOVED_DISK
+ log_must zpool reopen -n $TESTPOOL
+-log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
++log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "offline"
+ # 3. Write test file to pool.
+ log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
+ # 4. Execute scrub.
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_005_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_005_pos.ksh
+index fc298d010..688596c1b 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_005_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zpool_reopen/zpool_reopen_005_pos.ksh
+@@ -57,7 +57,7 @@ default_mirror_setup_noexit $REMOVED_DISK_ID $DISK2
+ remove_disk $REMOVED_DISK
+ 
+ log_must zpool reopen $TESTPOOL
+-log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
++log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "offline"
+ # 3. Write test file to pool.
+ log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
+ # 4. "Plug back" disk.
+-- 
+2.17.1
+

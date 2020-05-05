@@ -1,0 +1,8 @@
+module/avl/zavl.ko          lib/modules/_KVERS_/extra/zcommon/
+module/icp/icp.ko           lib/modules/_KVERS_/extra/zcommon/
+module/lua/zlua.ko          lib/modules/_KVERS_/extra/zcommon/
+module/nvpair/znvpair.ko    lib/modules/_KVERS_/extra/zcommon/
+module/spl/spl.ko           lib/modules/_KVERS_/extra/zcommon/
+module/unicode/zunicode.ko  lib/modules/_KVERS_/extra/zcommon/
+module/zcommon/zcommon.ko   lib/modules/_KVERS_/extra/zcommon/
+module/zfs/zfs.ko           lib/modules/_KVERS_/extra/zcommon/

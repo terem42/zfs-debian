@@ -1,0 +1,81 @@
+From a0752dc891bdd8dc4e2e818504371c32f2384382 Mon Sep 17 00:00:00 2001
+From: Tony Perkins <tperkins@datto.com>
+Date: Sun, 27 Sep 2020 20:46:22 -0400
+Subject: [PATCH] Start snapdir_iterate traversals to begin wtih the value of
+ zero.
+
+The microzap hash can sometimes be zero for single digit snapnames.
+The zap cursor can then have a serialized value of two (for . and ..),
+and skip the first entry in the avl tree for the .zfs/snapshot directory
+listing, and therefore does not return all snapshots.
+
+Signed-off-by: Tony Perkins <tperkins@datto.com>
+---
+ module/os/linux/zfs/zpl_ctldir.c                |  3 ++-
+ .../zfs_snapshot/zfs_snapshot_009_pos.ksh       | 17 +++++++++++++++++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/module/os/linux/zfs/zpl_ctldir.c b/module/os/linux/zfs/zpl_ctldir.c
+index fa4500f6f..e29081bfd 100644
+--- a/module/os/linux/zfs/zpl_ctldir.c
++++ b/module/os/linux/zfs/zpl_ctldir.c
+@@ -248,7 +248,8 @@ zpl_snapdir_iterate(struct file *filp, zpl_dir_context_t *ctx)
+ 	if (!zpl_dir_emit_dots(filp, ctx))
+ 		goto out;
+ 
+-	pos = ctx->pos;
++	// Start the position at 0 if it already emitted . and ..
++	pos = (ctx->pos == 2 ? 0 : ctx->pos);
+ 	while (error == 0) {
+ 		dsl_pool_config_enter(dmu_objset_pool(zfsvfs->z_os), FTAG);
+ 		error = -dmu_snapshot_list_next(zfsvfs->z_os, MAXNAMELEN,
+diff --git a/tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh b/tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh
+index f0682b816..a20fcc4ce 100755
+--- a/tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh
++++ b/tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh
+@@ -12,6 +12,7 @@
+ 
+ #
+ # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
++# Copyright (c) 2020 by Datto Inc. All rights reserved.
+ #
+ 
+ #
+@@ -23,6 +24,8 @@
+ # 2. Create multiple snapshots with a list of valid and invalid
+ #    snapshot names
+ # 3. Verify the valid snapshot creation
++# 4. Verify creation of snapshots report the correct numbers by
++#    performing a snapshot directory listing
+ 
+ . $STF_SUITE/include/libtest.shlib
+ 
+@@ -34,6 +37,7 @@ function cleanup
+ 		datasetexists $ds && log_must zfs destroy -r $ds
+ 	done
+ 	zfs destroy -r $TESTPOOL/TESTFS4
++	zfs destroy -r $TESTPOOL/TESTFS5
+ }
+ datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2
+     $TESTPOOL/$TESTFS3"
+@@ -112,4 +116,17 @@ log_must zfs rename $TESTPOOL/$TESTFS3/TESTFSA$DATASET_XXX \
+ log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS2@snap1 \
+         $TESTPOOL/$TESTFS3@snap1 $TESTPOOL/TESTFS4@snap1
+ 
++MYTEST="TESTFS5"
++ITERATIONS=10
++NUM_SNAPS=5
++for x in {1..$ITERATIONS}; do
++	log_must zfs create $TESTPOOL/$MYTEST
++	for y in {1..$NUM_SNAPS}; do
++		log_must zfs snapshot $TESTPOOL/$MYTEST@$y
++	done;
++	n=$(ls -1 /$TESTPOOL/$MYTEST/.zfs/snapshot | wc -l)
++	verify_eq $n $NUM_SNAPS "count"
++	zfs destroy -r $TESTPOOL/$MYTEST;
++done;
++
+ log_pass "zfs multiple snapshot verified correctly"
+-- 
+2.24.0.windows.2
+

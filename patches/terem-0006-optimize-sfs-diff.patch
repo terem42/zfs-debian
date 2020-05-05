@@ -1,0 +1,2401 @@
+From fc3f3503de94277e52a583514a70939424fc59b7 Mon Sep 17 00:00:00 2001
+From: John Poduska <jpoduska@datto.com>
+Date: Mon, 6 Jan 2020 15:51:13 -0500
+Subject: [PATCH] Optimize zfs diff
+
+The current implementation of zfs diff uses zfs_obj_to_stats(), which
+in turn uses zfs_obj_to_path() to get the path to the dnode. The path
+is then built using zap_value_search() to expand the parents. The
+problem is zap_value_search() doesn't do a lookup, it does a linear
+search through the entire directory object, which leads to n^2
+behavior.
+
+This changeset adds the ioctl ZFS_IOC_DUMP_ZAP, which is used to
+enumerate directories and cache them in userland. The zfs diff stream
+has been modified to always return a stat object for every id being
+used since the libzfs_diff code would always do this anyway. A new
+flag was added to zfs_obj_to_stats() to prevent looking up the path
+the old way.
+
+Signed-off-by: John Poduska <jpoduska@datto.com>
+---
+ include/libzfs_impl.h                         |  25 +-
+ include/sys/fs/zfs.h                          |  11 +-
+ include/sys/zfs_ioctl.h                       |  25 +-
+ include/sys/zfs_stat.h                        |  11 +
+ lib/libzfs/libzfs_dataset.c                   |   1 +
+ lib/libzfs/libzfs_diff.c                      | 911 ++++++++++--------
+ lib/libzfs/os/freebsd/libzfs_compat.c         |   6 -
+ lib/libzfs/os/freebsd/libzfs_fsshare.c        |   1 +
+ lib/libzfs/os/linux/libzfs_mount_os.c         |   1 +
+ lib/libzfs/os/linux/libzfs_util_os.c          |  21 -
+ lib/libzpool/kernel.c                         |   6 +
+ module/os/freebsd/zfs/zfs_znode.c             |  96 +-
+ module/os/linux/zfs/zfs_znode.c               |  94 +-
+ module/zfs/dmu_diff.c                         | 213 ++--
+ module/zfs/dsl_dataset.c                      |   5 +
+ module/zfs/zfs_ioctl.c                        | 138 ++-
+ .../libzfs_input_check/libzfs_input_check.c   |   3 +
+ 17 files changed, 998 insertions(+), 570 deletions(-)
+
+diff --git a/include/libzfs_impl.h b/include/libzfs_impl.h
+index 91fa1efbb..05d20c38c 100644
+--- a/include/libzfs_impl.h
++++ b/include/libzfs_impl.h
+@@ -22,7 +22,7 @@
+ /*
+  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+- * Copyright (c) 2018 Datto Inc.
++ * Copyright (c) 2018, 2020, Datto Inc. All rights reserved.
+  * Copyright 2020 Joyent, Inc.
+  */
+ 
+@@ -38,7 +38,6 @@
+ 
+ #include <libuutil.h>
+ #include <libzfs.h>
+-#include <libshare.h>
+ #include <libzfs_core.h>
+ 
+ #ifdef	__cplusplus
+@@ -223,27 +222,6 @@ typedef struct {
+ 	int p_unshare_err;
+ } proto_table_t;
+ 
+-typedef struct differ_info {
+-	zfs_handle_t *zhp;
+-	char *fromsnap;
+-	char *frommnt;
+-	char *tosnap;
+-	char *tomnt;
+-	char *ds;
+-	char *dsmnt;
+-	char *tmpsnap;
+-	char errbuf[1024];
+-	boolean_t isclone;
+-	boolean_t scripted;
+-	boolean_t classify;
+-	boolean_t timestamped;
+-	uint64_t shares;
+-	int zerr;
+-	int cleanupfd;
+-	int outputfd;
+-	int datafd;
+-} differ_info_t;
+-
+ extern proto_table_t proto_table[PROTO_END];
+ 
+ extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
+@@ -260,7 +238,6 @@ extern zfs_share_type_t is_shared_impl(libzfs_handle_t *hdl,
+ extern int libzfs_load_module(void);
+ extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
+     const char *msg);
+-extern int find_shares_object(differ_info_t *di);
+ extern void libzfs_set_pipe_max(int infd);
+ 
+ #ifdef	__cplusplus
+diff --git a/include/sys/fs/zfs.h b/include/sys/fs/zfs.h
+index ecdfd42d0..944f4e2e4 100644
+--- a/include/sys/fs/zfs.h
++++ b/include/sys/fs/zfs.h
+@@ -26,7 +26,7 @@
+  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
+  * Copyright (c) 2014 Integros [integros.com]
+  * Copyright (c) 2017, Intel Corporation.
+- * Copyright (c) 2019 Datto Inc.
++ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
+  */
+ 
+ /* Portions Copyright 2010 Robert Milkowski */
+@@ -1285,6 +1285,7 @@ typedef enum zfs_ioc {
+ 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
+ 	ZFS_IOC_WAIT,				/* 0x5a53 */
+ 	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
++	ZFS_IOC_DUMP_ZAP,			/* 0x5a55 */
+ 
+ 	/*
+ 	 * Per-platform (Optional) - 8/128 numbers reserved.
+@@ -1453,6 +1454,14 @@ typedef enum {
+ #define	ZFS_IMPORT_LOAD_KEYS	0x40
+ #define	ZFS_IMPORT_CHECKPOINT	0x80
+ 
++/*
++ * Flags for ZFS_IOC_DUMP_ZAP
++ */
++typedef enum zfs_dump_zap_flags {
++	ZDZ_NONE		= 0,
++	ZDZ_VALUE_ONLY		= (1 << 0)
++} zfs_dump_zap_flags_t;
++
+ /*
+  * Channel program argument/return nvlist keys and defaults.
+  */
+diff --git a/include/sys/zfs_ioctl.h b/include/sys/zfs_ioctl.h
+index d4ffe70bb..09dcafacf 100644
+--- a/include/sys/zfs_ioctl.h
++++ b/include/sys/zfs_ioctl.h
+@@ -23,6 +23,7 @@
+  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+  * Copyright 2016 RackTop Systems.
+  * Copyright (c) 2017, Intel Corporation.
++ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
+  */
+ 
+ #ifndef	_SYS_ZFS_IOCTL_H
+@@ -364,20 +365,32 @@ typedef struct dmu_replay_record {
+ 
+ /* diff record range types */
+ typedef enum diff_type {
+-	DDR_NONE = 0x1,
+-	DDR_INUSE = 0x2,
+-	DDR_FREE = 0x4
++	DDR_NONE	= 0x0,
++	DDR_IN_TO	= 0x1,	/* dnode in to snap only */
++	DDR_IN_FROM	= 0x2,	/* dnode in from snap only */
++	DDR_IN_BOTH	= 0x3	/* dnode in both from and to snaps */
+ } diff_type_t;
+ 
+ /*
+  * The diff reports back ranges of free or in-use objects.
+  */
+ typedef struct dmu_diff_record {
+-	uint64_t ddr_type;
+-	uint64_t ddr_first;
+-	uint64_t ddr_last;
++	diff_type_t	ddr_type;
++	uint64_t	ddr_obj;
++	int		ddr_err[2];
++	zfs_stat_t	ddr_zs[2];	/* space for 1 or two stats as needed */
+ } dmu_diff_record_t;
+ 
++typedef enum zfs_obj_stat_flags {
++	ZOS_NONE	= 0,
++	ZOS_NO_PATH	= (1 << 0)
++} zfs_obj_stat_flags_t;
++
++typedef struct zap_pair_record {
++	uint64_t zpr_value;
++	char	 zpr_key[ZAP_MAXNAMELEN];
++} zap_pair_record_t;
++
+ typedef struct zinject_record {
+ 	uint64_t	zi_objset;
+ 	uint64_t	zi_object;
+diff --git a/include/sys/zfs_stat.h b/include/sys/zfs_stat.h
+index 465aefaa2..d8fe72ded 100644
+--- a/include/sys/zfs_stat.h
++++ b/include/sys/zfs_stat.h
+@@ -20,6 +20,7 @@
+  */
+ /*
+  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ #ifndef	_SYS_FS_ZFS_STAT_H
+@@ -44,11 +45,21 @@ typedef struct zfs_stat {
+ 	uint64_t	zs_mode;
+ 	uint64_t	zs_links;
+ 	uint64_t	zs_ctime[2];
++	uint64_t	zs_parent;
++	uint64_t	zs_flags;
+ } zfs_stat_t;
+ 
++typedef void *zfs_obj_stats_ctx_t;
++
++extern int zfs_obj_stats_ctx_setup(objset_t *os, zfs_obj_stats_ctx_t *ctx);
++extern int zfs_obj_stats_ctx(objset_t *osp, zfs_obj_stats_ctx_t ctx,
++    uint64_t obj, zfs_stat_t *sb, char *buf, int len);
++
+ extern int zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
+     char *buf, int len);
+ 
++extern boolean_t zfs_reserved_obj(uint64_t obj);
++
+ #ifdef	__cplusplus
+ }
+ #endif
+diff --git a/lib/libzfs/libzfs_dataset.c b/lib/libzfs/libzfs_dataset.c
+index 90c6b68e3..eea888495 100644
+--- a/lib/libzfs/libzfs_dataset.c
++++ b/lib/libzfs/libzfs_dataset.c
+@@ -62,6 +62,7 @@
+ #include <sys/dsl_crypt.h>
+ #include <libzfs.h>
+ #include <libzutil.h>
++#include <libshare.h>
+ 
+ #include "zfs_namecheck.h"
+ #include "zfs_prop.h"
+diff --git a/lib/libzfs/libzfs_diff.c b/lib/libzfs/libzfs_diff.c
+index 7941a5883..3063fc724 100644
+--- a/lib/libzfs/libzfs_diff.c
++++ b/lib/libzfs/libzfs_diff.c
+@@ -25,6 +25,7 @@
+  * Copyright (c) 2015, 2018 by Delphix. All rights reserved.
+  * Copyright 2016 Joyent, Inc.
+  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ /*
+@@ -46,6 +47,7 @@
+ #include <sys/zfs_ioctl.h>
+ #include <libzfs.h>
+ #include "libzfs_impl.h"
++#include <sys/zfs_znode.h>
+ 
+ #define	ZDIFF_SNAPDIR		"/.zfs/snapshot/"
+ #define	ZDIFF_PREFIX		"zfs-diff-%d"
+@@ -55,52 +57,310 @@
+ #define	ZDIFF_REMOVED	'-'
+ #define	ZDIFF_RENAMED	'R'
+ 
++typedef struct path_mapper path_mapper_t;
++
++typedef struct differ_info {
++	libzfs_handle_t *hdl;
++	char *fromsnap;
++	char *frommnt;
++	char *tosnap;
++	char *tomnt;
++	char *ds;
++	char *dsmnt;
++	char *tmpsnap;
++	char errbuf[1024];
++	boolean_t isclone;
++	boolean_t scripted;
++	boolean_t classify;
++	boolean_t timestamped;
++	int zerr;
++	int cleanupfd;
++	int datafd;
++	int outputfd;
++	FILE *ofp;
++	path_mapper_t *frompm;
++	path_mapper_t *topm;
++} differ_info_t;
++
++typedef struct path_part path_part_t;
++struct path_part {
++	avl_node_t	pp_node;
++	uint64_t	pp_obj;
++	uint64_t	pp_parent;
++	char		pp_name[];
++};
++
++struct path_mapper {
++	avl_tree_t	pm_tree;
++	libzfs_handle_t	*pm_hdl;
++	int		pm_pipes[2];
++	int		pm_err;
++	int		pm_direrr;
++	zfs_cmd_t	pm_zc;
++};
+ 
+-/*
+- * Given a {dsname, object id}, get the object path
+- */
+ static int
+-get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
+-    char *pn, int maxlen, zfs_stat_t *sb)
++read_bytes(int fd, void *data, size_t bytes)
+ {
+-	zfs_cmd_t zc = {"\0"};
+-	int error;
++	uint8_t *pdata = data;
++	uint8_t *pend = &pdata[bytes];
++
++	while (pdata < pend) {
++		int cnt = read(fd, pdata, pend - pdata);
++		if (cnt == 0)
++			return ((pdata > (uint8_t *)data) ? EPIPE : ENOENT);
++		pdata += cnt;
++	}
++
++	return (0);
++}
+ 
+-	(void) strlcpy(zc.zc_name, dsname, sizeof (zc.zc_name));
+-	zc.zc_obj = obj;
++static int
++pp_compare(const void *x1, const void *x2)
++{
++	const path_part_t *pp1 = x1;
++	const path_part_t *pp2 = x2;
++	return (TREE_CMP(pp1->pp_obj, pp2->pp_obj));
++}
+ 
+-	errno = 0;
+-	error = zfs_ioctl(di->zhp->zfs_hdl, ZFS_IOC_OBJ_TO_STATS, &zc);
+-	di->zerr = errno;
++static path_part_t *
++pp_create(path_mapper_t *pm, uint64_t parent, uint64_t obj, const char *path)
++{
++	int partlen = strlen(path);
++	path_part_t *pp = zfs_alloc(pm->pm_hdl,
++	    offsetof(path_part_t, pp_name[partlen + 1]));
+ 
+-	/* we can get stats even if we failed to get a path */
+-	(void) memcpy(sb, &zc.zc_stat, sizeof (zfs_stat_t));
+-	if (error == 0) {
+-		ASSERT(di->zerr == 0);
+-		(void) strlcpy(pn, zc.zc_value, maxlen);
+-		return (0);
++	pp->pp_obj = obj;
++	pp->pp_parent = parent;
++	(void) strcpy(pp->pp_name, path);
++
++	return (pp);
++}
++
++static path_part_t *
++pp_create_from_zpr(path_mapper_t *pm, zap_pair_record_t *zpr)
++{
++	return (pp_create(pm, pm->pm_zc.zc_obj, ZFS_DIRENT_OBJ(zpr->zpr_value),
++	    zpr->zpr_key));
++}
++
++static void
++pp_destroy(path_part_t *pp)
++{
++	free(pp);
++}
++
++static path_mapper_t *
++pathm_create(libzfs_handle_t *hdl, const char *snap)
++{
++	path_mapper_t *pm = zfs_alloc(hdl, sizeof (path_mapper_t));
++
++	pm->pm_hdl = hdl;
++	avl_create(&pm->pm_tree, pp_compare, sizeof (path_part_t),
++	    offsetof(path_part_t, pp_node));
++
++	(void) strlcpy(pm->pm_zc.zc_name, snap, sizeof (pm->pm_zc.zc_name));
++
++	return (pm);
++}
++
++static void
++pathm_destroy(path_mapper_t *pm)
++{
++	path_part_t *pp;
++	void *cookie = NULL;
++
++	if (pm == NULL)
++		return;
++
++	while ((pp = avl_destroy_nodes(&pm->pm_tree, &cookie)))
++		pp_destroy(pp);
++
++	avl_destroy(&pm->pm_tree);
++	free(pm);
++}
++
++static void *
++pathm_dir_thread(void *arg)
++{
++	uint64_t count;
++	path_mapper_t *pm = arg;
++
++	pm->pm_direrr = read_bytes(pm->pm_pipes[0], &count, sizeof (count));
++	if (pm->pm_direrr != 0)
++		goto done;
++
++	for (uint64_t iter = 0; ; iter++) {
++		path_part_t *pp;
++		path_part_t search;
++		avl_index_t where = 0;
++		zap_pair_record_t zpr;
++
++		pm->pm_direrr = read_bytes(pm->pm_pipes[0], &zpr, sizeof (zpr));
++		if (pm->pm_direrr != 0) {
++			if (pm->pm_direrr == ENOENT && iter == count)
++				pm->pm_direrr = 0;
++			break;
++		}
++
++		search.pp_obj = ZFS_DIRENT_OBJ(zpr.zpr_value);
++		if ((pp = avl_find(&pm->pm_tree, &search, &where))) {
++			ASSERT3U(pp->pp_parent, ==, pm->pm_zc.zc_obj);
++			continue;
++		}
++
++		pp = pp_create_from_zpr(pm, &zpr);
++		if (pp == NULL) {
++			pm->pm_direrr = ENOMEM;
++			break;
++		}
++
++		avl_insert(&pm->pm_tree, pp, where);
+ 	}
+ 
+-	if (di->zerr == ESTALE) {
+-		(void) snprintf(pn, maxlen, "(on_delete_queue)");
++done:
++	(void) close(pm->pm_pipes[0]);
++	return (NULL);
++}
++
++static int
++pathm_read_dir(path_mapper_t *pm, uint64_t parent)
++{
++	pthread_t tid;
++	int err = 0;
++
++	if (pipe(pm->pm_pipes))
++		return (EPIPE);
++
++	pm->pm_direrr = 0;
++	if (pthread_create(&tid, NULL, pathm_dir_thread, pm)) {
++		(void) close(pm->pm_pipes[0]);
++		(void) close(pm->pm_pipes[1]);
++		return (EZFS_THREADCREATEFAILED);
++	}
++
++	/* do the ioctl() */
++	pm->pm_zc.zc_obj = parent;
++	pm->pm_zc.zc_cookie = pm->pm_pipes[1];
++	pm->pm_zc.zc_flags = 0;
++	if (zfs_ioctl(pm->pm_hdl, ZFS_IOC_DUMP_ZAP, &pm->pm_zc) != 0)
++		err = errno;
++	(void) close(pm->pm_pipes[1]);
++	(void) pthread_join(tid, NULL);
++	pm->pm_err = (err != 0) ? err : pm->pm_direrr;
++	return (pm->pm_err);
++}
++
++static path_part_t *
++pathm_lookup(path_mapper_t *pm, uint64_t obj, zfs_stat_t *zs)
++{
++	avl_index_t where = 0;
++	path_part_t search, *pp;
++
++	search.pp_obj = obj;
++	pp = avl_find(&pm->pm_tree, &search, &where);
++	if (pp)
++		return (pp);
++
++	if (zs->zs_parent == obj) {
++		pp = pp_create(pm, obj, obj, "");
++		avl_insert(&pm->pm_tree, pp, where);
++		return (pp);
++	} else if ((zs->zs_flags & ZFS_XATTR) && S_ISDIR(zs->zs_mode)) {
++		pp = pp_create(pm, zs->zs_parent, obj, "<xattrdir>");
++		avl_insert(&pm->pm_tree, pp, where);
++		return (pp);
++	}
++
++	if (pathm_read_dir(pm, zs->zs_parent) != 0)
++		return (NULL);
++
++	return (avl_find(&pm->pm_tree, &search, NULL));
++}
++
++static char *
++pathm_build_path(path_mapper_t *pm, path_part_t *pp, char *path)
++{
++	path_part_t search, *parent;
++
++	if (pp->pp_obj == pp->pp_parent)
++		return (path);
++
++	search.pp_obj = pp->pp_parent;
++	parent = avl_find(&pm->pm_tree, &search, NULL);
++	if (parent == NULL) {
++		zfs_cmd_t *zc = &pm->pm_zc;
++
++		zc->zc_obj = pp->pp_parent;
++		zc->zc_flags = ZOS_NO_PATH;
++		if (zfs_ioctl(pm->pm_hdl, ZFS_IOC_OBJ_TO_STATS, zc) != 0) {
++			pm->pm_err = errno;
++			return (NULL);
++		}
++
++		parent = pathm_lookup(pm, pp->pp_parent, &zc->zc_stat);
++		if (parent == NULL)
++			return (NULL);
++	}
++
++	path = pathm_build_path(pm, parent, path);
++	path += sprintf(path, "/%s", pp->pp_name);
++
++	return (path);
++}
++
++static int
++pathm_obj_to_path(path_mapper_t *pm, uint64_t obj, zfs_stat_t *zs, int err,
++    char *pn)
++{
++	pn[0] = '\0';
++	pm->pm_err = err;
++	if (pm->pm_err == 0) {
++		path_part_t *pp = pathm_lookup(pm, obj, zs);
++		if (pp && pathm_build_path(pm, pp, pn))
++			return (0);
++
++		if (pm->pm_err == 0)
++			pm->pm_err = ENOENT;
++	}
++
++	if (pm->pm_err == ESTALE) {
++		(void) snprintf(pn, MAXPATHLEN, "(on_delete_queue)");
+ 		return (0);
+-	} else if (di->zerr == EPERM) {
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "The sys_config privilege or diff delegated permission "
+-		    "is needed\nto discover path names"));
+-		return (-1);
+-	} else if (di->zerr == EACCES) {
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "Key must be loaded to discover path names"));
+-		return (-1);
++	}
++
++	return (-1);
++}
++
++/*PRINTFLIKE2*/
++static int
++di_err(differ_info_t *di, int err, const char *fmt, ...)
++{
++	va_list ap;
++
++	if (err != 0)
++		di->zerr = err;
++	ASSERT3U(di->zerr, !=, 0);
++	va_start(ap, fmt);
++	(void) vsnprintf(di->errbuf, sizeof (di->errbuf), fmt, ap);
++	va_end(ap);
++	return (-1);
++}
++
++static int
++di_pathm_err(differ_info_t *di, path_mapper_t *pm, uint64_t obj)
++{
++	if (pm->pm_err == EPERM) {
++		return (di_err(di, pm->pm_err, dgettext(TEXT_DOMAIN,
++		    "The sys_config privilege or diff delegated permission is "
++		    "needed\nto discover path names")));
++	} else if (pm->pm_err == EACCES) {
++		return (di_err(di, pm->pm_err, dgettext(TEXT_DOMAIN,
++		    "Key must be loaded to discover path names")));
+ 	} else {
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "Unable to determine path or stats for "
+-		    "object %lld in %s"), (longlong_t)obj, dsname);
+-		return (-1);
++		return (di_err(di, pm->pm_err, dgettext(TEXT_DOMAIN,
++		    "Unable to determine path or stats for object %lld in %s"),
++		    (longlong_t)obj, pm->pm_zc.zc_name));
+ 	}
+ }
+ 
+@@ -129,125 +389,91 @@ stream_bytes(FILE *fp, const char *string)
+ 	}
+ }
+ 
+-static void
+-print_what(FILE *fp, mode_t what)
++static char
++mode_to_type(mode_t mode)
+ {
+-	char symbol;
+-
+-	switch (what & S_IFMT) {
++	switch (mode & S_IFMT) {
+ 	case S_IFBLK:
+-		symbol = 'B';
+-		break;
++		return ('B');
+ 	case S_IFCHR:
+-		symbol = 'C';
+-		break;
++		return ('C');
+ 	case S_IFDIR:
+-		symbol = '/';
+-		break;
++		return ('/');
+ #ifdef S_IFDOOR
+ 	case S_IFDOOR:
+-		symbol = '>';
+-		break;
++		return ('>');
+ #endif
+ 	case S_IFIFO:
+-		symbol = '|';
+-		break;
++		return ('|');
+ 	case S_IFLNK:
+-		symbol = '@';
+-		break;
++		return ('@');
+ #ifdef S_IFPORT
+ 	case S_IFPORT:
+-		symbol = 'P';
+-		break;
++		return ('P');
+ #endif
+ 	case S_IFSOCK:
+-		symbol = '=';
+-		break;
++		return ('=');
+ 	case S_IFREG:
+-		symbol = 'F';
+-		break;
++		return ('F');
+ 	default:
+-		symbol = '?';
+-		break;
++		return ('?');
+ 	}
+-	(void) fprintf(fp, "%c", symbol);
+ }
+ 
+ static void
+-print_cmn(FILE *fp, differ_info_t *di, const char *file)
++di_print_cmn(differ_info_t *di, const char *file)
+ {
+-	stream_bytes(fp, di->dsmnt);
+-	stream_bytes(fp, file);
++	stream_bytes(di->ofp, di->dsmnt);
++	stream_bytes(di->ofp, (file[0] != '\0') ? file : "/");
+ }
+ 
+ static void
+-print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
+-    zfs_stat_t *isb)
++di_print_prefix(differ_info_t *di, char type, const char *path, zfs_stat_t *zs)
+ {
+ 	if (di->timestamped)
+-		(void) fprintf(fp, "%10lld.%09lld\t",
+-		    (longlong_t)isb->zs_ctime[0],
+-		    (longlong_t)isb->zs_ctime[1]);
+-	(void) fprintf(fp, "%c\t", ZDIFF_RENAMED);
+-	if (di->classify) {
+-		print_what(fp, isb->zs_mode);
+-		(void) fprintf(fp, "\t");
+-	}
+-	print_cmn(fp, di, old);
+-	if (di->scripted)
+-		(void) fprintf(fp, "\t");
+-	else
+-		(void) fprintf(fp, " -> ");
+-	print_cmn(fp, di, new);
+-	(void) fprintf(fp, "\n");
++		(void) fprintf(di->ofp, "%10lld.%09lld\t",
++		    (longlong_t)zs->zs_ctime[0],
++		    (longlong_t)zs->zs_ctime[1]);
++	(void) fprintf(di->ofp, "%c\t", type);
++	if (di->classify)
++		(void) fprintf(di->ofp, "%c\t", mode_to_type(zs->zs_mode));
++	di_print_cmn(di, path);
+ }
+ 
+ static void
+-print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
+-    zfs_stat_t *isb)
++di_print_rename(differ_info_t *di, const char *old, const char *new,
++    zfs_stat_t *zs)
+ {
+-	if (di->timestamped)
+-		(void) fprintf(fp, "%10lld.%09lld\t",
+-		    (longlong_t)isb->zs_ctime[0],
+-		    (longlong_t)isb->zs_ctime[1]);
+-	(void) fprintf(fp, "%c\t", ZDIFF_MODIFIED);
+-	if (di->classify) {
+-		print_what(fp, isb->zs_mode);
+-		(void) fprintf(fp, "\t");
+-	}
+-	print_cmn(fp, di, file);
+-	(void) fprintf(fp, "\t(%+d)", delta);
+-	(void) fprintf(fp, "\n");
++	di_print_prefix(di, ZDIFF_RENAMED, old, zs);
++	(void) fprintf(di->ofp, di->scripted ? "\t" : " -> ");
++	di_print_cmn(di, new);
++	(void) fprintf(di->ofp, "\n");
+ }
+ 
+ static void
+-print_file(FILE *fp, differ_info_t *di, char type, const char *file,
+-    zfs_stat_t *isb)
++di_print_link_change(differ_info_t *di, int delta, const char *file,
++    zfs_stat_t *zs)
+ {
+-	if (di->timestamped)
+-		(void) fprintf(fp, "%10lld.%09lld\t",
+-		    (longlong_t)isb->zs_ctime[0],
+-		    (longlong_t)isb->zs_ctime[1]);
+-	(void) fprintf(fp, "%c\t", type);
+-	if (di->classify) {
+-		print_what(fp, isb->zs_mode);
+-		(void) fprintf(fp, "\t");
+-	}
+-	print_cmn(fp, di, file);
+-	(void) fprintf(fp, "\n");
++	di_print_prefix(di, ZDIFF_MODIFIED, file, zs);
++	(void) fprintf(di->ofp, "\t(%+d)\n", delta);
++}
++
++static void
++di_print_file(differ_info_t *di, char type, const char *file, zfs_stat_t *zs)
++{
++	di_print_prefix(di, type, file, zs);
++	(void) fprintf(di->ofp, "\n");
+ }
+ 
+ static int
+-write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
++di_write_inuse_diff(differ_info_t *di, dmu_diff_record_t *dr)
+ {
+-	struct zfs_stat fsb, tsb;
++	uint64_t obj = dr->ddr_obj;
++	path_mapper_t *frompm = di->frompm, *topm = di->topm;
++	zfs_stat_t *tzs = &dr->ddr_zs[0], *fzs = &dr->ddr_zs[1];
+ 	mode_t fmode, tmode;
+-	char fobjname[MAXPATHLEN], tobjname[MAXPATHLEN];
+-	int fobjerr, tobjerr;
+-	int change;
+-
+-	if (dobj == di->shares)
+-		return (0);
++	char fpath[MAXPATHLEN], tpath[MAXPATHLEN];
++	int ferr, terr, change;
+ 
+ 	/*
+ 	 * Check the from and to snapshots for info on the object. If
+@@ -255,150 +481,85 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
+ 	 * snapshot.  If we get ENOTSUP, then we tried to get
+ 	 * info on a non-ZPL object, which we don't care about anyway.
+ 	 */
+-	fobjerr = get_stats_for_obj(di, di->fromsnap, dobj, fobjname,
+-	    MAXPATHLEN, &fsb);
+-	if (fobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
+-		return (-1);
++	ferr = pathm_obj_to_path(frompm, obj, fzs, dr->ddr_err[1], fpath);
++	if (ferr && frompm->pm_err != ENOENT && frompm->pm_err != ENOTSUP)
++		return (di_pathm_err(di, frompm, obj));
+ 
+-	tobjerr = get_stats_for_obj(di, di->tosnap, dobj, tobjname,
+-	    MAXPATHLEN, &tsb);
+-	if (tobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
+-		return (-1);
++	terr = pathm_obj_to_path(topm, obj, tzs, dr->ddr_err[0], tpath);
++	if (terr && topm->pm_err != ENOENT && topm->pm_err != ENOTSUP)
++		return (di_pathm_err(di, topm, obj));
++
++	di->zerr = 0;
+ 
+ 	/*
+ 	 * Unallocated object sharing the same meta dnode block
+ 	 */
+-	if (fobjerr && tobjerr) {
+-		ASSERT(di->zerr == ENOENT || di->zerr == ENOTSUP);
+-		di->zerr = 0;
++	if (ferr && terr)
+ 		return (0);
+-	}
+ 
+-	di->zerr = 0; /* negate get_stats_for_obj() from side that failed */
+-	fmode = fsb.zs_mode & S_IFMT;
+-	tmode = tsb.zs_mode & S_IFMT;
+-	if (fmode == S_IFDIR || tmode == S_IFDIR || fsb.zs_links == 0 ||
+-	    tsb.zs_links == 0)
++	fmode = fzs->zs_mode & S_IFMT;
++	tmode = tzs->zs_mode & S_IFMT;
++	if (fmode == S_IFDIR || tmode == S_IFDIR || fzs->zs_links == 0 ||
++	    tzs->zs_links == 0)
+ 		change = 0;
+ 	else
+-		change = tsb.zs_links - fsb.zs_links;
+-
+-	if (fobjerr) {
+-		if (change) {
+-			print_link_change(fp, di, change, tobjname, &tsb);
+-			return (0);
+-		}
+-		print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb);
+-		return (0);
+-	} else if (tobjerr) {
+-		if (change) {
+-			print_link_change(fp, di, change, fobjname, &fsb);
+-			return (0);
+-		}
+-		print_file(fp, di, ZDIFF_REMOVED, fobjname, &fsb);
+-		return (0);
+-	}
+-
+-	if (fmode != tmode && fsb.zs_gen == tsb.zs_gen)
+-		tsb.zs_gen++;	/* Force a generational difference */
+-
+-	/* Simple modification or no change */
+-	if (fsb.zs_gen == tsb.zs_gen) {
+-		/* No apparent changes.  Could we assert !this?  */
+-		if (fsb.zs_ctime[0] == tsb.zs_ctime[0] &&
+-		    fsb.zs_ctime[1] == tsb.zs_ctime[1])
+-			return (0);
+-		if (change) {
+-			print_link_change(fp, di, change,
+-			    change > 0 ? fobjname : tobjname, &tsb);
+-		} else if (strcmp(fobjname, tobjname) == 0) {
+-			print_file(fp, di, ZDIFF_MODIFIED, fobjname, &tsb);
++		change = tzs->zs_links - fzs->zs_links;
++
++	if (ferr) {
++		if (change)
++			di_print_link_change(di, change, tpath, tzs);
++		else
++			di_print_file(di, ZDIFF_ADDED, tpath, tzs);
++	} else if (terr) {
++		if (change)
++			di_print_link_change(di, change, fpath, fzs);
++		else
++			di_print_file(di, ZDIFF_REMOVED, fpath, fzs);
++	} else {
++		if (fmode != tmode && fzs->zs_gen == tzs->zs_gen)
++			tzs->zs_gen++;	/* Force a generational difference */
++
++		/* Simple modification or no change */
++		if (fzs->zs_gen == tzs->zs_gen) {
++			/* No apparent changes.  Could we assert !this?  */
++			if (fzs->zs_ctime[0] == tzs->zs_ctime[0] &&
++			    fzs->zs_ctime[1] == tzs->zs_ctime[1])
++				return (0);
++			if (change) {
++				di_print_link_change(di, change,
++				    change > 0 ? fpath : tpath, tzs);
++			} else if (strcmp(fpath, tpath) == 0) {
++				di_print_file(di, ZDIFF_MODIFIED, fpath, tzs);
++			} else {
++				di_print_rename(di, fpath, tpath, tzs);
++			}
+ 		} else {
+-			print_rename(fp, di, fobjname, tobjname, &tsb);
++			/* file re-created or object re-used */
++			di_print_file(di, ZDIFF_REMOVED, fpath, fzs);
++			di_print_file(di, ZDIFF_ADDED, tpath, tzs);
+ 		}
+-		return (0);
+-	} else {
+-		/* file re-created or object re-used */
+-		print_file(fp, di, ZDIFF_REMOVED, fobjname, &fsb);
+-		print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb);
+-		return (0);
+ 	}
+-}
+ 
+-static int
+-write_inuse_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
+-{
+-	uint64_t o;
+-	int err;
+-
+-	for (o = dr->ddr_first; o <= dr->ddr_last; o++) {
+-		if ((err = write_inuse_diffs_one(fp, di, o)) != 0)
+-			return (err);
+-	}
+ 	return (0);
+ }
+ 
+ static int
+-describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
+-    int maxlen)
++di_write_free_diff(differ_info_t *di, dmu_diff_record_t *dr)
+ {
+-	struct zfs_stat sb;
++	char path[MAXPATHLEN];
++	struct zfs_stat *zs = &dr->ddr_zs[0];
+ 
+-	if (get_stats_for_obj(di, di->fromsnap, object, namebuf,
+-	    maxlen, &sb) != 0) {
+-		return (-1);
++	if (dr->ddr_err[0] != 0) {
++		return (di_err(di, dr->ddr_err[0], dgettext(TEXT_DOMAIN,
++		    "next allocated object (> %lld) find failure"),
++		    (longlong_t)dr->ddr_obj));
+ 	}
+-	/* Don't print if in the delete queue on from side */
+-	if (di->zerr == ESTALE) {
+-		di->zerr = 0;
+-		return (0);
+-	}
+-
+-	print_file(fp, di, ZDIFF_REMOVED, namebuf, &sb);
+-	return (0);
+-}
+-
+-static int
+-write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
+-{
+-	zfs_cmd_t zc = {"\0"};
+-	libzfs_handle_t *lhdl = di->zhp->zfs_hdl;
+-	char fobjname[MAXPATHLEN];
+ 
+-	(void) strlcpy(zc.zc_name, di->fromsnap, sizeof (zc.zc_name));
+-	zc.zc_obj = dr->ddr_first - 1;
++	if (pathm_obj_to_path(di->frompm, dr->ddr_obj, zs, 0, path) != 0)
++		return (di_pathm_err(di, di->frompm, dr->ddr_obj));
+ 
+-	ASSERT(di->zerr == 0);
++	di_print_file(di, ZDIFF_REMOVED, path, zs);
+ 
+-	while (zc.zc_obj < dr->ddr_last) {
+-		int err;
+-
+-		err = zfs_ioctl(lhdl, ZFS_IOC_NEXT_OBJ, &zc);
+-		if (err == 0) {
+-			if (zc.zc_obj == di->shares) {
+-				zc.zc_obj++;
+-				continue;
+-			}
+-			if (zc.zc_obj > dr->ddr_last) {
+-				break;
+-			}
+-			err = describe_free(fp, di, zc.zc_obj, fobjname,
+-			    MAXPATHLEN);
+-			if (err)
+-				break;
+-		} else if (errno == ESRCH) {
+-			break;
+-		} else {
+-			(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-			    dgettext(TEXT_DOMAIN,
+-			    "next allocated object (> %lld) find failure"),
+-			    (longlong_t)zc.zc_obj);
+-			di->zerr = errno;
+-			break;
+-		}
+-	}
+-	if (di->zerr)
+-		return (-1);
+ 	return (0);
+ }
+ 
+@@ -406,70 +567,55 @@ static void *
+ differ(void *arg)
+ {
+ 	differ_info_t *di = arg;
++	const offset_t size1 = offsetof(dmu_diff_record_t, ddr_zs[1]);
++	const offset_t size2 = sizeof (dmu_diff_record_t) - size1;
+ 	dmu_diff_record_t dr;
+-	FILE *ofp;
+ 	int err = 0;
+ 
+-	if ((ofp = fdopen(di->outputfd, "w")) == NULL) {
+-		di->zerr = errno;
+-		strlcpy(di->errbuf, strerror(errno), sizeof (di->errbuf));
++	di->ofp = fdopen(di->outputfd, "w");
++	if (di->ofp == NULL) {
++		(void) di_err(di, errno, strerror(errno));
+ 		(void) close(di->datafd);
+ 		return ((void *)-1);
+ 	}
+ 
+ 	for (;;) {
+-		char *cp = (char *)&dr;
+-		int len = sizeof (dr);
+-		int rv;
+-
+-		do {
+-			rv = read(di->datafd, cp, len);
+-			cp += rv;
+-			len -= rv;
+-		} while (len > 0 && rv > 0);
+-
+-		if (rv < 0 || (rv == 0 && len != sizeof (dr))) {
+-			di->zerr = EPIPE;
+-			break;
+-		} else if (rv == 0) {
+-			/* end of file at a natural breaking point */
++		err = read_bytes(di->datafd, &dr, size1);
++		if (err == 0 && dr.ddr_type == DDR_IN_BOTH)
++			err = read_bytes(di->datafd, &dr.ddr_zs[1], size2);
++		if (err != 0) {
++			if (err == EPIPE)
++				di->zerr = EPIPE;
+ 			break;
+ 		}
+ 
+-		switch (dr.ddr_type) {
+-		case DDR_FREE:
+-			err = write_free_diffs(ofp, di, &dr);
+-			break;
+-		case DDR_INUSE:
+-			err = write_inuse_diffs(ofp, di, &dr);
+-			break;
+-		default:
++		if (dr.ddr_type == DDR_IN_TO || dr.ddr_type == DDR_IN_BOTH)
++			err = di_write_inuse_diff(di, &dr);
++		else if (dr.ddr_type == DDR_IN_FROM)
++			err = di_write_free_diff(di, &dr);
++		else
+ 			di->zerr = EPIPE;
+-			break;
+-		}
+ 
+ 		if (err || di->zerr)
+ 			break;
+ 	}
+ 
+-	(void) fclose(ofp);
++	(void) fclose(di->ofp);
+ 	(void) close(di->datafd);
+-	if (err)
++	if (err && err != ENOENT)
+ 		return ((void *)-1);
+ 	if (di->zerr) {
+-		ASSERT(di->zerr == EPIPE);
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "Internal error: bad data from diff IOCTL"));
++		ASSERT3U(di->zerr, ==, EPIPE);
++		(void) di_err(di, EZFS_UNKNOWN, dgettext(TEXT_DOMAIN,
++		    "bad data from diff IOCTL"));
+ 		return ((void *)-1);
+ 	}
+ 	return ((void *)0);
+ }
+ 
+ static int
+-make_temp_snapshot(differ_info_t *di)
++di_make_temp_snapshot(differ_info_t *di)
+ {
+-	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
+ 	zfs_cmd_t zc = {"\0"};
+ 
+ 	(void) snprintf(zc.zc_value, sizeof (zc.zc_value),
+@@ -477,30 +623,29 @@ make_temp_snapshot(differ_info_t *di)
+ 	(void) strlcpy(zc.zc_name, di->ds, sizeof (zc.zc_name));
+ 	zc.zc_cleanup_fd = di->cleanupfd;
+ 
+-	if (zfs_ioctl(hdl, ZFS_IOC_TMP_SNAPSHOT, &zc) != 0) {
+-		int err = errno;
+-		if (err == EPERM) {
+-			(void) snprintf(di->errbuf, sizeof (di->errbuf),
++	if (zfs_ioctl(di->hdl, ZFS_IOC_TMP_SNAPSHOT, &zc) != 0) {
++		if (errno == EPERM) {
++			return (zfs_error_fmt(di->hdl, EZFS_DIFF,
+ 			    dgettext(TEXT_DOMAIN, "The diff delegated "
+ 			    "permission is needed in order\nto create a "
+-			    "just-in-time snapshot for diffing\n"));
+-			return (zfs_error(hdl, EZFS_DIFF, di->errbuf));
++			    "just-in-time snapshot for diffing\n")));
+ 		} else {
+-			(void) snprintf(di->errbuf, sizeof (di->errbuf),
++			return (zfs_standard_error_fmt(di->hdl, errno,
+ 			    dgettext(TEXT_DOMAIN, "Cannot create just-in-time "
+-			    "snapshot of '%s'"), zc.zc_name);
+-			return (zfs_standard_error(hdl, err, di->errbuf));
++			    "snapshot of '%s'"), zc.zc_name));
+ 		}
+ 	}
+ 
+-	di->tmpsnap = zfs_strdup(hdl, zc.zc_value);
+-	di->tosnap = zfs_asprintf(hdl, "%s@%s", di->ds, di->tmpsnap);
++	di->tmpsnap = zfs_strdup(di->hdl, zc.zc_value);
++	di->tosnap = zfs_asprintf(di->hdl, "%s@%s", di->ds, di->tmpsnap);
+ 	return (0);
+ }
+ 
+ static void
+-teardown_differ_info(differ_info_t *di)
++di_teardown(differ_info_t *di)
+ {
++	pathm_destroy(di->frompm);
++	pathm_destroy(di->topm);
+ 	free(di->ds);
+ 	free(di->dsmnt);
+ 	free(di->fromsnap);
+@@ -512,10 +657,10 @@ teardown_differ_info(differ_info_t *di)
+ }
+ 
+ static int
+-get_snapshot_names(differ_info_t *di, const char *fromsnap,
++di_get_snapshot_names(differ_info_t *di, const char *fromsnap,
+     const char *tosnap)
+ {
+-	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
++	libzfs_handle_t *hdl = di->hdl;
+ 	char *atptrf = NULL;
+ 	char *atptrt = NULL;
+ 	int fdslen, fsnlen;
+@@ -533,14 +678,11 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 	 */
+ 	if (tosnap == NULL) {
+ 		/* only a from snapshot given, must be valid */
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "Badly formed snapshot name %s"), fromsnap);
+-
+ 		if (!zfs_validate_name(hdl, fromsnap, ZFS_TYPE_SNAPSHOT,
+ 		    B_FALSE)) {
+-			return (zfs_error(hdl, EZFS_INVALIDNAME,
+-			    di->errbuf));
++			return (zfs_error_fmt(hdl, EZFS_INVALIDNAME,
++			    dgettext(TEXT_DOMAIN,
++			    "Badly formed snapshot name %s"), fromsnap));
+ 		}
+ 
+ 		atptrf = strchr(fromsnap, '@');
+@@ -552,13 +694,9 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 		di->ds[fdslen] = '\0';
+ 
+ 		/* the to snap will be a just-in-time snap of the head */
+-		return (make_temp_snapshot(di));
++		return (di_make_temp_snapshot(di));
+ 	}
+ 
+-	(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-	    dgettext(TEXT_DOMAIN,
+-	    "Unable to determine which snapshots to compare"));
+-
+ 	atptrf = strchr(fromsnap, '@');
+ 	atptrt = strchr(tosnap, '@');
+ 	fdslen = atptrf ? atptrf - fromsnap : strlen(fromsnap);
+@@ -567,7 +705,8 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 	tsnlen = strlen(tosnap) - tdslen;	/* includes @ sign */
+ 
+ 	if (fsnlen <= 1 || tsnlen == 1 || (fdslen == 0 && tdslen == 0)) {
+-		return (zfs_error(hdl, EZFS_INVALIDNAME, di->errbuf));
++		return (zfs_error(hdl, EZFS_INVALIDNAME, dgettext(TEXT_DOMAIN,
++		    "Unable to determine which snapshots to compare")));
+ 	} else if ((fdslen > 0 && tdslen > 0) &&
+ 	    ((tdslen != fdslen || strncmp(fromsnap, tosnap, fdslen) != 0))) {
+ 		/*
+@@ -578,7 +717,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 		zprop_source_t src;
+ 		zfs_handle_t *zhp;
+ 
+-		di->ds = zfs_alloc(di->zhp->zfs_hdl, tdslen + 1);
++		di->ds = zfs_alloc(di->hdl, tdslen + 1);
+ 		(void) strncpy(di->ds, tosnap, tdslen);
+ 		di->ds[tdslen] = '\0';
+ 
+@@ -598,10 +737,9 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 		}
+ 
+ 		if (zhp == NULL) {
+-			(void) snprintf(di->errbuf, sizeof (di->errbuf),
++			return (zfs_error(hdl, EZFS_INVALIDNAME,
+ 			    dgettext(TEXT_DOMAIN,
+-			    "Not an earlier snapshot from the same fs"));
+-			return (zfs_error(hdl, EZFS_INVALIDNAME, di->errbuf));
++			    "Not an earlier snapshot from the same fs")));
+ 		} else {
+ 			(void) zfs_close(zhp);
+ 		}
+@@ -611,7 +749,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 		if (tsnlen) {
+ 			di->tosnap = zfs_strdup(hdl, tosnap);
+ 		} else {
+-			return (make_temp_snapshot(di));
++			return (di_make_temp_snapshot(di));
+ 		}
+ 	} else {
+ 		int dslen = fdslen ? fdslen : tdslen;
+@@ -624,24 +762,18 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
+ 		if (tsnlen) {
+ 			di->tosnap = zfs_asprintf(hdl, "%s%s", di->ds, atptrt);
+ 		} else {
+-			return (make_temp_snapshot(di));
++			return (di_make_temp_snapshot(di));
+ 		}
+ 	}
+ 	return (0);
+ }
+ 
+ static int
+-get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
++di_get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
+ {
+-	boolean_t mounted;
+-
+-	mounted = is_mounted(di->zhp->zfs_hdl, dsnm, mntpt);
+-	if (mounted == B_FALSE) {
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN,
+-		    "Cannot diff an unmounted snapshot"));
+-		return (zfs_error(di->zhp->zfs_hdl, EZFS_BADTYPE, di->errbuf));
+-	}
++	if (!is_mounted(di->hdl, dsnm, mntpt))
++		return (zfs_error(di->hdl, EZFS_BADTYPE, dgettext(TEXT_DOMAIN,
++		    "Cannot diff an unmounted snapshot")));
+ 
+ 	/* Avoid a double slash at the beginning of root-mounted datasets */
+ 	if (**mntpt == '/' && *(*mntpt + 1) == '\0')
+@@ -650,20 +782,19 @@ get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
+ }
+ 
+ static int
+-get_mountpoints(differ_info_t *di)
++di_get_mountpoints(differ_info_t *di)
+ {
+-	char *strptr;
+-	char *frommntpt;
++	char *strptr, *frommntpt;
+ 
+ 	/*
+ 	 * first get the mountpoint for the parent dataset
+ 	 */
+-	if (get_mountpoint(di, di->ds, &di->dsmnt) != 0)
++	if (di_get_mountpoint(di, di->ds, &di->dsmnt) != 0)
+ 		return (-1);
+ 
+ 	strptr = strchr(di->tosnap, '@');
+ 	ASSERT3P(strptr, !=, NULL);
+-	di->tomnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", di->dsmnt,
++	di->tomnt = zfs_asprintf(di->hdl, "%s%s%s", di->dsmnt,
+ 	    ZDIFF_SNAPDIR, ++strptr);
+ 
+ 	strptr = strchr(di->fromsnap, '@');
+@@ -671,18 +802,16 @@ get_mountpoints(differ_info_t *di)
+ 
+ 	frommntpt = di->dsmnt;
+ 	if (di->isclone) {
+-		char *mntpt;
+ 		int err;
+ 
+ 		*strptr = '\0';
+-		err = get_mountpoint(di, di->fromsnap, &mntpt);
++		err = di_get_mountpoint(di, di->fromsnap, &frommntpt);
+ 		*strptr = '@';
+ 		if (err != 0)
+ 			return (-1);
+-		frommntpt = mntpt;
+ 	}
+ 
+-	di->frommnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", frommntpt,
++	di->frommnt = zfs_asprintf(di->hdl, "%s%s%s", frommntpt,
+ 	    ZDIFF_SNAPDIR, ++strptr);
+ 
+ 	if (di->isclone)
+@@ -692,106 +821,104 @@ get_mountpoints(differ_info_t *di)
+ }
+ 
+ static int
+-setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
+-    const char *tosnap, differ_info_t *di)
++di_setup(differ_info_t *di, zfs_handle_t *zhp, int outfd, const char *fromsnap,
++    const char *tosnap, int flags)
+ {
+-	di->zhp = zhp;
++	di->hdl = zhp->zfs_hdl;
++
++	di->scripted = (flags & ZFS_DIFF_PARSEABLE);
++	di->classify = (flags & ZFS_DIFF_CLASSIFY);
++	di->timestamped = (flags & ZFS_DIFF_TIMESTAMP);
++
++	di->outputfd = outfd;
+ 
+ 	di->cleanupfd = open(ZFS_DEV, O_RDWR);
+ 	VERIFY(di->cleanupfd >= 0);
+ 
+-	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
++	if (di_get_snapshot_names(di, fromsnap, tosnap) != 0)
+ 		return (-1);
+ 
+-	if (get_mountpoints(di) != 0)
++	if (di_get_mountpoints(di) != 0)
+ 		return (-1);
+ 
+-	if (find_shares_object(di) != 0)
+-		return (-1);
++	di->frompm = pathm_create(di->hdl, di->fromsnap);
++	di->topm = pathm_create(di->hdl, di->tosnap);
+ 
+ 	return (0);
+ }
+ 
+-int
+-zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
+-    const char *tosnap, int flags)
++static int
++di_show_diffs(differ_info_t *di)
+ {
+ 	zfs_cmd_t zc = {"\0"};
+-	char errbuf[1024];
+-	differ_info_t di = { 0 };
+ 	pthread_t tid;
+ 	int pipefd[2];
+ 	int iocerr;
+ 
+-	(void) snprintf(errbuf, sizeof (errbuf),
+-	    dgettext(TEXT_DOMAIN, "zfs diff failed"));
+-
+-	if (setup_differ_info(zhp, fromsnap, tosnap, &di)) {
+-		teardown_differ_info(&di);
+-		return (-1);
+-	}
+-
+ 	if (pipe(pipefd)) {
+-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+-		teardown_differ_info(&di);
+-		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
++		zfs_error_aux(di->hdl, strerror(errno));
++		return (zfs_error(di->hdl, EZFS_PIPEFAILED,
++		    dgettext(TEXT_DOMAIN, "zfs diff failed")));
+ 	}
++	di->datafd = pipefd[0];
+ 
+-	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
+-	di.classify = (flags & ZFS_DIFF_CLASSIFY);
+-	di.timestamped = (flags & ZFS_DIFF_TIMESTAMP);
+-
+-	di.outputfd = outfd;
+-	di.datafd = pipefd[0];
+-
+-	if (pthread_create(&tid, NULL, differ, &di)) {
+-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
++	if (pthread_create(&tid, NULL, differ, di)) {
++		zfs_error_aux(di->hdl, strerror(errno));
+ 		(void) close(pipefd[0]);
+ 		(void) close(pipefd[1]);
+-		teardown_differ_info(&di);
+-		return (zfs_error(zhp->zfs_hdl,
+-		    EZFS_THREADCREATEFAILED, errbuf));
++		return (zfs_error(di->hdl, EZFS_THREADCREATEFAILED,
++		    dgettext(TEXT_DOMAIN, "zfs diff failed")));
+ 	}
+ 
+ 	/* do the ioctl() */
+-	(void) strlcpy(zc.zc_value, di.fromsnap, strlen(di.fromsnap) + 1);
+-	(void) strlcpy(zc.zc_name, di.tosnap, strlen(di.tosnap) + 1);
++	(void) strlcpy(zc.zc_value, di->fromsnap, sizeof (zc.zc_value));
++	(void) strlcpy(zc.zc_name, di->tosnap, sizeof (zc.zc_name));
+ 	zc.zc_cookie = pipefd[1];
+ 
+-	iocerr = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DIFF, &zc);
+-	if (iocerr != 0) {
+-		(void) snprintf(errbuf, sizeof (errbuf),
+-		    dgettext(TEXT_DOMAIN, "Unable to obtain diffs"));
+-		if (errno == EPERM) {
+-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+-			    "\n   The sys_mount privilege or diff delegated "
+-			    "permission is needed\n   to execute the "
+-			    "diff ioctl"));
+-		} else if (errno == EXDEV) {
+-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+-			    "\n   Not an earlier snapshot from the same fs"));
+-		} else if (errno != EPIPE || di.zerr == 0) {
+-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+-		}
+-		(void) close(pipefd[1]);
+-		(void) pthread_cancel(tid);
++	iocerr = zfs_ioctl(di->hdl, ZFS_IOC_DIFF, &zc);
++	(void) close(pipefd[1]);
++	if (iocerr == 0) {
+ 		(void) pthread_join(tid, NULL);
+-		teardown_differ_info(&di);
+-		if (di.zerr != 0 && di.zerr != EPIPE) {
+-			zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
+-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+-		} else {
+-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
++		if (di->zerr != 0) {
++			zfs_error_aux(di->hdl, strerror(di->zerr));
++			return (zfs_error(di->hdl, EZFS_DIFF, di->errbuf));
+ 		}
++		return (0);
+ 	}
+ 
+-	(void) close(pipefd[1]);
++	(void) pthread_cancel(tid);
+ 	(void) pthread_join(tid, NULL);
+ 
+-	if (di.zerr != 0) {
+-		zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
+-		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
++	if (di->zerr != 0 && di->zerr != EPIPE) {
++		zfs_error_aux(di->hdl, strerror(di->zerr));
++		return (zfs_error(di->hdl, EZFS_DIFF, di->errbuf));
+ 	}
+-	teardown_differ_info(&di);
+-	return (0);
++
++	if (errno == EPERM) {
++		zfs_error_aux(di->hdl, dgettext(TEXT_DOMAIN,
++		    "\n   The sys_mount privilege or diff delegated "
++		    "permission is needed\n   to execute the diff ioctl"));
++	} else if (errno == EXDEV) {
++		zfs_error_aux(di->hdl, dgettext(TEXT_DOMAIN,
++		    "\n   Not an earlier snapshot from the same fs"));
++	} else if (errno != EPIPE || di->zerr == 0) {
++		zfs_error_aux(di->hdl, strerror(errno));
++	}
++
++	return (zfs_error(di->hdl, EZFS_DIFFDATA,
++	    dgettext(TEXT_DOMAIN, "Unable to obtain diffs")));
++}
++
++int
++zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
++    const char *tosnap, int flags)
++{
++	differ_info_t di = { 0 };
++	int err;
++
++	err = di_setup(&di, zhp, outfd, fromsnap, tosnap, flags);
++	if (err == 0)
++		err = di_show_diffs(&di);
++	di_teardown(&di);
++	return (err);
+ }
+diff --git a/lib/libzfs/os/freebsd/libzfs_compat.c b/lib/libzfs/os/freebsd/libzfs_compat.c
+index e1c6ef93d..15e8094c5 100644
+--- a/lib/libzfs/os/freebsd/libzfs_compat.c
++++ b/lib/libzfs/os/freebsd/libzfs_compat.c
+@@ -252,12 +252,6 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
+ 	return (0);
+ }
+ 
+-int
+-find_shares_object(differ_info_t *di)
+-{
+-	return (0);
+-}
+-
+ /*
+  * Attach/detach the given filesystem to/from the given jail.
+  */
+diff --git a/lib/libzfs/os/freebsd/libzfs_fsshare.c b/lib/libzfs/os/freebsd/libzfs_fsshare.c
+index 0fd75bf2c..fd82078a0 100644
+--- a/lib/libzfs/os/freebsd/libzfs_fsshare.c
++++ b/lib/libzfs/os/freebsd/libzfs_fsshare.c
+@@ -41,6 +41,7 @@ __FBSDID("$FreeBSD$");
+ #include <libintl.h>
+ 
+ #include "libzfs_impl.h"
++#include <libshare.h>
+ 
+ #define	_PATH_MOUNTDPID	"/var/run/mountd.pid"
+ #define	FILE_HEADER	"# !!! DO NOT EDIT THIS FILE MANUALLY !!!\n\n"
+diff --git a/lib/libzfs/os/linux/libzfs_mount_os.c b/lib/libzfs/os/linux/libzfs_mount_os.c
+index 04252e421..2b681b4f6 100644
+--- a/lib/libzfs/os/linux/libzfs_mount_os.c
++++ b/lib/libzfs/os/linux/libzfs_mount_os.c
+@@ -46,6 +46,7 @@
+ #include <sys/vfs.h>
+ #include <sys/dsl_crypt.h>
+ #include <libzfs.h>
++#include <libshare.h>
+ 
+ #include "libzfs_impl.h"
+ #include <thread_pool.h>
+diff --git a/lib/libzfs/os/linux/libzfs_util_os.c b/lib/libzfs/os/linux/libzfs_util_os.c
+index 918a43f7d..7e1f72667 100644
+--- a/lib/libzfs/os/linux/libzfs_util_os.c
++++ b/lib/libzfs/os/linux/libzfs_util_os.c
+@@ -43,8 +43,6 @@
+ #include <libzutil.h>
+ #include <sys/zfs_sysfs.h>
+ 
+-#define	ZDIFF_SHARESDIR		"/.zfs/shares/"
+-
+ int
+ zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
+ {
+@@ -165,25 +163,6 @@ libzfs_load_module(void)
+ 	return (libzfs_load_module_impl(ZFS_DRIVER));
+ }
+ 
+-int
+-find_shares_object(differ_info_t *di)
+-{
+-	char fullpath[MAXPATHLEN];
+-	struct stat64 sb = { 0 };
+-
+-	(void) strlcpy(fullpath, di->dsmnt, MAXPATHLEN);
+-	(void) strlcat(fullpath, ZDIFF_SHARESDIR, MAXPATHLEN);
+-
+-	if (stat64(fullpath, &sb) != 0) {
+-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+-		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
+-		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
+-	}
+-
+-	di->shares = (uint64_t)sb.st_ino;
+-	return (0);
+-}
+-
+ /*
+  * Fill given version buffer with zfs kernel version read from ZFS_SYSFS_DIR
+  * Returns 0 on success, and -1 on error (with errno set)
+diff --git a/lib/libzpool/kernel.c b/lib/libzpool/kernel.c
+index d19ecc18f..6c14d007a 100644
+--- a/lib/libzpool/kernel.c
++++ b/lib/libzpool/kernel.c
+@@ -925,6 +925,12 @@ ksiddomain_rele(ksiddomain_t *ksid)
+ 	umem_free(ksid, sizeof (ksiddomain_t));
+ }
+ 
++boolean_t
++zfs_reserved_obj(uint64_t obj)
++{
++	return (B_FALSE);
++}
++
+ char *
+ kmem_vasprintf(const char *fmt, va_list adx)
+ {
+diff --git a/module/os/freebsd/zfs/zfs_znode.c b/module/os/freebsd/zfs/zfs_znode.c
+index b9d5472b2..d7e6e791d 100644
+--- a/module/os/freebsd/zfs/zfs_znode.c
++++ b/module/os/freebsd/zfs/zfs_znode.c
+@@ -22,6 +22,7 @@
+  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+  * Copyright (c) 2014 Integros [integros.com]
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ /* Portions Copyright 2007 Jeremy Teo */
+@@ -1800,23 +1801,39 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
+  */
+ static int
+ zfs_obj_to_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
+-    zfs_stat_t *sb)
++    zfs_stat_t *zs)
+ {
+-	sa_bulk_attr_t bulk[4];
++	sa_bulk_attr_t bulk[6];
+ 	int count = 0;
+ 
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_MODE], NULL,
+-	    &sb->zs_mode, sizeof (sb->zs_mode));
++	    &zs->zs_mode, sizeof (zs->zs_mode));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_GEN], NULL,
+-	    &sb->zs_gen, sizeof (sb->zs_gen));
++	    &zs->zs_gen, sizeof (zs->zs_gen));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_LINKS], NULL,
+-	    &sb->zs_links, sizeof (sb->zs_links));
++	    &zs->zs_links, sizeof (zs->zs_links));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_CTIME], NULL,
+-	    &sb->zs_ctime, sizeof (sb->zs_ctime));
++	    &zs->zs_ctime, sizeof (zs->zs_ctime));
++	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_PARENT], NULL,
++	    &zs->zs_parent, sizeof (zs->zs_parent));
++	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_FLAGS], NULL,
++	    &zs->zs_flags, sizeof (zs->zs_flags));
+ 
+ 	return (sa_bulk_lookup(hdl, bulk, count));
+ }
+ 
++static int
++zfs_obj_check_deleteq(objset_t *osp, uint64_t obj)
++{
++	uint64_t deleteq_obj;
++	int err;
++
++	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
++	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
++	err = zap_lookup_int(osp, deleteq_obj, obj);
++	return (err == ENOENT ? 0 : err == 0 ? ESTALE : err);
++}
++
+ static int
+ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
+     sa_attr_type_t *sa_table, char *buf, int len)
+@@ -1831,19 +1848,12 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
+ 	*path = '\0';
+ 	sa_hdl = hdl;
+ 
+-	uint64_t deleteq_obj;
+-	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
+-	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
+-	error = zap_lookup_int(osp, deleteq_obj, obj);
+-	if (error == 0) {
+-		return (ESTALE);
+-	} else if (error != ENOENT) {
++	error = zfs_obj_check_deleteq(osp, obj);
++	if (error != 0)
+ 		return (error);
+-	}
+-	error = 0;
+ 
+ 	for (;;) {
+-		uint64_t pobj;
++		uint64_t pobj = 0;
+ 		char component[MAXNAMELEN + 2];
+ 		size_t complen;
+ 		int is_xattrdir;
+@@ -1923,37 +1933,65 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
+ }
+ 
+ int
+-zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
+-    char *buf, int len)
++zfs_obj_stats_ctx(objset_t *os, zfs_obj_stats_ctx_t ctx, uint64_t obj,
++    zfs_stat_t *zs, char *buf, int len)
+ {
+-	char *path = buf + len - 1;
+-	sa_attr_type_t *sa_table;
++	sa_attr_type_t *sa_table = (sa_attr_type_t *)ctx;
+ 	sa_handle_t *hdl;
+ 	dmu_buf_t *db;
+ 	int error;
+ 
+-	*path = '\0';
+-
+-	error = zfs_sa_setup(osp, &sa_table);
+-	if (error != 0)
+-		return (error);
+-
+-	error = zfs_grab_sa_handle(osp, obj, &hdl, &db, FTAG);
++	error = zfs_grab_sa_handle(os, obj, &hdl, &db, FTAG);
+ 	if (error != 0)
+ 		return (error);
+ 
+-	error = zfs_obj_to_stats_impl(hdl, sa_table, sb);
++	error = zfs_obj_to_stats_impl(hdl, sa_table, zs);
+ 	if (error != 0) {
+ 		zfs_release_sa_handle(hdl, db, FTAG);
+ 		return (error);
+ 	}
+ 
+-	error = zfs_obj_to_path_impl(osp, obj, hdl, sa_table, buf, len);
++	if (buf)
++		error = zfs_obj_to_path_impl(os, obj, hdl, sa_table, buf, len);
++	else
++		error = zfs_obj_check_deleteq(os, obj);
+ 
+ 	zfs_release_sa_handle(hdl, db, FTAG);
++
+ 	return (error);
+ }
+ 
++int
++zfs_obj_stats_ctx_setup(objset_t *os, zfs_obj_stats_ctx_t *ctx)
++{
++	sa_attr_type_t *sa_table;
++	int err;
++
++	err = zfs_sa_setup(os, &sa_table);
++	*ctx = (zfs_obj_stats_ctx_t)sa_table;
++	return (err);
++}
++
++int
++zfs_obj_to_stats(objset_t *os, uint64_t obj, zfs_stat_t *zs, char *buf, int len)
++{
++	zfs_obj_stats_ctx_t ctx;
++	int err;
++
++	err = zfs_obj_stats_ctx_setup(os, &ctx);
++	if (err == 0)
++		err = zfs_obj_stats_ctx(os, ctx, obj, zs, buf, len);
++	return (err);
++}
++
++#if defined(_KERNEL)
++boolean_t
++zfs_reserved_obj(uint64_t obj)
++{
++	return (B_FALSE);
++}
++#endif
++
+ #ifdef _KERNEL
+ int
+ zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
+diff --git a/module/os/linux/zfs/zfs_znode.c b/module/os/linux/zfs/zfs_znode.c
+index 45f19785d..e4d89212a 100644
+--- a/module/os/linux/zfs/zfs_znode.c
++++ b/module/os/linux/zfs/zfs_znode.c
+@@ -21,6 +21,7 @@
+ /*
+  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ /* Portions Copyright 2007 Jeremy Teo */
+@@ -2082,23 +2083,39 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
+  */
+ static int
+ zfs_obj_to_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
+-    zfs_stat_t *sb)
++    zfs_stat_t *zs)
+ {
+-	sa_bulk_attr_t bulk[4];
++	sa_bulk_attr_t bulk[6];
+ 	int count = 0;
+ 
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_MODE], NULL,
+-	    &sb->zs_mode, sizeof (sb->zs_mode));
++	    &zs->zs_mode, sizeof (zs->zs_mode));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_GEN], NULL,
+-	    &sb->zs_gen, sizeof (sb->zs_gen));
++	    &zs->zs_gen, sizeof (zs->zs_gen));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_LINKS], NULL,
+-	    &sb->zs_links, sizeof (sb->zs_links));
++	    &zs->zs_links, sizeof (zs->zs_links));
+ 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_CTIME], NULL,
+-	    &sb->zs_ctime, sizeof (sb->zs_ctime));
++	    &zs->zs_ctime, sizeof (zs->zs_ctime));
++	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_PARENT], NULL,
++	    &zs->zs_parent, sizeof (zs->zs_parent));
++	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_FLAGS], NULL,
++	    &zs->zs_flags, sizeof (zs->zs_flags));
+ 
+ 	return (sa_bulk_lookup(hdl, bulk, count));
+ }
+ 
++static int
++zfs_obj_check_deleteq(objset_t *osp, uint64_t obj)
++{
++	uint64_t deleteq_obj;
++	int err;
++
++	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
++	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
++	err = zap_lookup_int(osp, deleteq_obj, obj);
++	return (err == ENOENT ? 0 : err == 0 ? ESTALE : err);
++}
++
+ static int
+ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
+     sa_attr_type_t *sa_table, char *buf, int len)
+@@ -2113,16 +2130,9 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
+ 	*path = '\0';
+ 	sa_hdl = hdl;
+ 
+-	uint64_t deleteq_obj;
+-	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
+-	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
+-	error = zap_lookup_int(osp, deleteq_obj, obj);
+-	if (error == 0) {
+-		return (ESTALE);
+-	} else if (error != ENOENT) {
++	error = zfs_obj_check_deleteq(osp, obj);
++	if (error != 0)
+ 		return (error);
+-	}
+-	error = 0;
+ 
+ 	for (;;) {
+ 		uint64_t pobj = 0;
+@@ -2205,37 +2215,65 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
+ }
+ 
+ int
+-zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
+-    char *buf, int len)
++zfs_obj_stats_ctx(objset_t *os, zfs_obj_stats_ctx_t ctx, uint64_t obj,
++    zfs_stat_t *zs, char *buf, int len)
+ {
+-	char *path = buf + len - 1;
+-	sa_attr_type_t *sa_table;
++	sa_attr_type_t *sa_table = (sa_attr_type_t *)ctx;
+ 	sa_handle_t *hdl;
+ 	dmu_buf_t *db;
+ 	int error;
+ 
+-	*path = '\0';
+-
+-	error = zfs_sa_setup(osp, &sa_table);
+-	if (error != 0)
+-		return (error);
+-
+-	error = zfs_grab_sa_handle(osp, obj, &hdl, &db, FTAG);
++	error = zfs_grab_sa_handle(os, obj, &hdl, &db, FTAG);
+ 	if (error != 0)
+ 		return (error);
+ 
+-	error = zfs_obj_to_stats_impl(hdl, sa_table, sb);
++	error = zfs_obj_to_stats_impl(hdl, sa_table, zs);
+ 	if (error != 0) {
+ 		zfs_release_sa_handle(hdl, db, FTAG);
+ 		return (error);
+ 	}
+ 
+-	error = zfs_obj_to_path_impl(osp, obj, hdl, sa_table, buf, len);
++	if (buf)
++		error = zfs_obj_to_path_impl(os, obj, hdl, sa_table, buf, len);
++	else
++		error = zfs_obj_check_deleteq(os, obj);
+ 
+ 	zfs_release_sa_handle(hdl, db, FTAG);
++
+ 	return (error);
+ }
+ 
++int
++zfs_obj_stats_ctx_setup(objset_t *os, zfs_obj_stats_ctx_t *ctx)
++{
++	sa_attr_type_t *sa_table;
++	int err;
++
++	err = zfs_sa_setup(os, &sa_table);
++	*ctx = (zfs_obj_stats_ctx_t)sa_table;
++	return (err);
++}
++
++int
++zfs_obj_to_stats(objset_t *os, uint64_t obj, zfs_stat_t *zs, char *buf, int len)
++{
++	zfs_obj_stats_ctx_t ctx;
++	int err;
++
++	err = zfs_obj_stats_ctx_setup(os, &ctx);
++	if (err == 0)
++		err = zfs_obj_stats_ctx(os, ctx, obj, zs, buf, len);
++	return (err);
++}
++
++#if defined(_KERNEL)
++boolean_t
++zfs_reserved_obj(uint64_t obj)
++{
++	return (obj >= ZFSCTL_INO_SNAPDIRS && obj <= ZFSCTL_INO_ROOT);
++}
++#endif
++
+ #if defined(_KERNEL)
+ EXPORT_SYMBOL(zfs_create_fs);
+ EXPORT_SYMBOL(zfs_obj_to_path);
+diff --git a/module/zfs/dmu_diff.c b/module/zfs/dmu_diff.c
+index a573a2e1b..8e71a6781 100644
+--- a/module/zfs/dmu_diff.c
++++ b/module/zfs/dmu_diff.c
+@@ -22,6 +22,7 @@
+  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ #include <sys/dmu.h>
+@@ -42,29 +43,114 @@
+ #include <sys/zfs_znode.h>
+ #include <sys/zfs_file.h>
+ 
++typedef struct snap_info {
++	dsl_dataset_t	*si_ds;
++	objset_t	*si_os;
++	zfs_obj_stats_ctx_t si_ctx;
++} snap_info_t;
+ 
+ typedef struct dmu_diffarg {
+ 	zfs_file_t *da_fp;		/* file to which we are reporting */
+ 	offset_t *da_offp;
+ 	int da_err;			/* error that stopped diff search */
++	diff_type_t da_diff_type;
++	uint64_t da_firstobj;
++	uint64_t da_lastobj;
+ 	dmu_diff_record_t da_ddr;
++	snap_info_t da_from;
++	snap_info_t da_to;
+ } dmu_diffarg_t;
+ 
++static int
++write_frees(dmu_diffarg_t *da)
++{
++	dmu_diff_record_t *ddr = &da->da_ddr;
++	const offset_t size = offsetof(dmu_diff_record_t, ddr_zs[1]);
++	objset_t *os = da->da_from.si_os;
++
++	ddr->ddr_type = DDR_IN_FROM;
++	ddr->ddr_obj = da->da_firstobj - 1;
++	while (ddr->ddr_obj < da->da_lastobj) {
++		int err;
++
++		/* find next from dnode in free range */
++		err = dmu_object_next(os, &ddr->ddr_obj, B_FALSE, 0);
++		if (err == ESRCH || zfs_reserved_obj(ddr->ddr_obj) ||
++		    ddr->ddr_obj > da->da_lastobj)
++			return (0);
++
++		if (err == 0) {
++			err = zfs_obj_stats_ctx(os, da->da_from.si_ctx,
++			    ddr->ddr_obj, &ddr->ddr_zs[0], NULL, 0);
++
++			/* ignore dnodes that are already free (delete queue) */
++			if (err == ESTALE)
++				continue;
++		}
++		ddr->ddr_err[0] = err;
++
++		err = zfs_file_write(da->da_fp, ddr, size, NULL);
++		da->da_offp += size;
++
++		if (err != 0)
++			return (err);
++		else if (ddr->ddr_err[0] != 0)
++			return (ddr->ddr_err[0]);
++	}
++
++	return (0);
++}
++
++static int
++write_inuse(dmu_diffarg_t *da)
++{
++	dmu_diff_record_t *ddr = &da->da_ddr;
++	const offset_t size1 = offsetof(dmu_diff_record_t, ddr_zs[1]);
++	const offset_t size2 = sizeof (dmu_diff_record_t);
++	int err0, err1;
++
++	err0 = ddr->ddr_err[0] = zfs_obj_stats_ctx(da->da_to.si_os,
++	    da->da_to.si_ctx, ddr->ddr_obj, &ddr->ddr_zs[0], NULL, 0);
++	err1 = ddr->ddr_err[1] = zfs_obj_stats_ctx(da->da_from.si_os,
++	    da->da_from.si_ctx, ddr->ddr_obj, &ddr->ddr_zs[1], NULL, 0);
++
++	if (err1 == 0) {
++		ddr->ddr_type = DDR_IN_BOTH;
++		da->da_err = zfs_file_write(da->da_fp, ddr, size2, NULL);
++		da->da_offp += size2;
++	} else {
++		ddr->ddr_type = DDR_IN_TO;
++		da->da_err = zfs_file_write(da->da_fp, ddr, size1, NULL);
++		da->da_offp += size1;
++	}
++
++	/* ENOENT, ENOTSUP and ESTALE are handled by client */
++	if (err0 && err0 != ENOENT && err0 != ENOTSUP && err0 != ESTALE)
++		return (err0);
++	if (err1 && err1 != ENOENT && err1 != ENOTSUP && err1 != ESTALE)
++		return (err1);
++	return (da->da_err);
++}
++
+ static int
+ write_record(dmu_diffarg_t *da)
+ {
+-	zfs_file_t *fp;
+-	ssize_t resid;
++	dmu_diff_record_t *ddr = &da->da_ddr;
+ 
+-	if (da->da_ddr.ddr_type == DDR_NONE) {
++	ddr->ddr_type = da->da_diff_type;
++	if (ddr->ddr_type == DDR_NONE) {
+ 		da->da_err = 0;
+-		return (0);
++	} else if (da->da_diff_type == DDR_IN_FROM) {
++		da->da_err = write_frees(da);
++	} else {
++		for (ddr->ddr_obj = da->da_firstobj;
++		    ddr->ddr_obj <= da->da_lastobj; ddr->ddr_obj++) {
++			da->da_err = write_inuse(da);
++			if (da->da_err != 0)
++				break;
++		}
+ 	}
+ 
+-	fp = da->da_fp;
+-	da->da_err = zfs_file_write(fp, (caddr_t)&da->da_ddr,
+-	    sizeof (da->da_ddr), &resid);
+-	*da->da_offp += sizeof (da->da_ddr);
+ 	return (da->da_err);
+ }
+ 
+@@ -72,16 +158,15 @@ static int
+ report_free_dnode_range(dmu_diffarg_t *da, uint64_t first, uint64_t last)
+ {
+ 	ASSERT(first <= last);
+-	if (da->da_ddr.ddr_type != DDR_FREE ||
+-	    first != da->da_ddr.ddr_last + 1) {
++	if (da->da_diff_type != DDR_IN_FROM || first != da->da_lastobj + 1) {
+ 		if (write_record(da) != 0)
+ 			return (da->da_err);
+-		da->da_ddr.ddr_type = DDR_FREE;
+-		da->da_ddr.ddr_first = first;
+-		da->da_ddr.ddr_last = last;
++		da->da_diff_type = DDR_IN_FROM;
++		da->da_firstobj = first;
++		da->da_lastobj = last;
+ 		return (0);
+ 	}
+-	da->da_ddr.ddr_last = last;
++	da->da_lastobj = last;
+ 	return (0);
+ }
+ 
+@@ -92,15 +177,14 @@ report_dnode(dmu_diffarg_t *da, uint64_t object, dnode_phys_t *dnp)
+ 	if (dnp->dn_type == DMU_OT_NONE)
+ 		return (report_free_dnode_range(da, object, object));
+ 
+-	if (da->da_ddr.ddr_type != DDR_INUSE ||
+-	    object != da->da_ddr.ddr_last + 1) {
++	if (da->da_diff_type != DDR_IN_TO || object != da->da_lastobj + 1) {
+ 		if (write_record(da) != 0)
+ 			return (da->da_err);
+-		da->da_ddr.ddr_type = DDR_INUSE;
+-		da->da_ddr.ddr_first = da->da_ddr.ddr_last = object;
++		da->da_diff_type = DDR_IN_TO;
++		da->da_firstobj = da->da_lastobj = object;
+ 		return (0);
+ 	}
+-	da->da_ddr.ddr_last = object;
++	da->da_lastobj = object;
+ 	return (0);
+ }
+ 
+@@ -163,56 +247,71 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+ 	return (0);
+ }
+ 
++static int
++si_setup(snap_info_t *si, dsl_pool_t *dp, const char *snap, void *tag)
++{
++	int err;
++
++	if (strchr(snap, '@') == NULL)
++		return (SET_ERROR(EINVAL));
++
++	err = dsl_dataset_hold_flags(dp, snap, DS_HOLD_FLAG_DECRYPT, tag,
++	    &si->si_ds);
++	if (err != 0)
++		return (err);
++
++	err = dmu_objset_from_ds(si->si_ds, &si->si_os);
++	if (err != 0)
++		return (err);
++
++	return (zfs_obj_stats_ctx_setup(si->si_os, &si->si_ctx));
++}
++
++static void
++si_teardown(snap_info_t *si, boolean_t long_hold, void *tag)
++{
++	if (si->si_ds) {
++		if (long_hold)
++			dsl_dataset_long_rele(si->si_ds, tag);
++		dsl_dataset_rele_flags(si->si_ds, DS_HOLD_FLAG_DECRYPT, tag);
++	}
++}
++
+ int
+ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
+     zfs_file_t *fp, offset_t *offp)
+ {
+-	dmu_diffarg_t da;
+-	dsl_dataset_t *fromsnap;
+-	dsl_dataset_t *tosnap;
+-	dsl_pool_t *dp;
++	dmu_diffarg_t da = { 0 };
++	dsl_pool_t *dp = NULL;
+ 	int error;
+ 	uint64_t fromtxg;
+ 
+-	if (strchr(tosnap_name, '@') == NULL ||
+-	    strchr(fromsnap_name, '@') == NULL)
+-		return (SET_ERROR(EINVAL));
+-
+ 	error = dsl_pool_hold(tosnap_name, FTAG, &dp);
+ 	if (error != 0)
+ 		return (error);
+ 
+-	error = dsl_dataset_hold(dp, tosnap_name, FTAG, &tosnap);
+-	if (error != 0) {
+-		dsl_pool_rele(dp, FTAG);
+-		return (error);
+-	}
+-
+-	error = dsl_dataset_hold(dp, fromsnap_name, FTAG, &fromsnap);
+-	if (error != 0) {
+-		dsl_dataset_rele(tosnap, FTAG);
+-		dsl_pool_rele(dp, FTAG);
+-		return (error);
+-	}
++	error = si_setup(&da.da_to, dp, tosnap_name, FTAG);
++	if (error != 0)
++		goto done;
++	error = si_setup(&da.da_from, dp, fromsnap_name, FTAG);
++	if (error != 0)
++		goto done;
+ 
+-	if (!dsl_dataset_is_before(tosnap, fromsnap, 0)) {
+-		dsl_dataset_rele(fromsnap, FTAG);
+-		dsl_dataset_rele(tosnap, FTAG);
+-		dsl_pool_rele(dp, FTAG);
+-		return (SET_ERROR(EXDEV));
++	if (!dsl_dataset_is_before(da.da_to.si_ds, da.da_from.si_ds, 0)) {
++		error = SET_ERROR(EXDEV);
++		goto done;
+ 	}
+ 
+-	fromtxg = dsl_dataset_phys(fromsnap)->ds_creation_txg;
+-	dsl_dataset_rele(fromsnap, FTAG);
++	fromtxg = dsl_dataset_phys(da.da_from.si_ds)->ds_creation_txg;
+ 
+-	dsl_dataset_long_hold(tosnap, FTAG);
++	dsl_dataset_long_hold(da.da_to.si_ds, FTAG);
++	dsl_dataset_long_hold(da.da_from.si_ds, FTAG);
+ 	dsl_pool_rele(dp, FTAG);
++	dp = NULL;
+ 
+ 	da.da_fp = fp;
+ 	da.da_offp = offp;
+ 	da.da_ddr.ddr_type = DDR_NONE;
+-	da.da_ddr.ddr_first = da.da_ddr.ddr_last = 0;
+-	da.da_err = 0;
+ 
+ 	/*
+ 	 * Since zfs diff only looks at dnodes which are stored in plaintext
+@@ -222,19 +321,21 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
+ 	 * dataset isn't mounted and because it will fail when it attempts to
+ 	 * call the ZFS_IOC_OBJ_TO_STATS ioctl.
+ 	 */
+-	error = traverse_dataset(tosnap, fromtxg,
++	error = traverse_dataset(da.da_to.si_ds, fromtxg,
+ 	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
+ 	    diff_cb, &da);
+ 
+-	if (error != 0) {
+-		da.da_err = error;
+-	} else {
++	if (error == 0) {
+ 		/* we set the da.da_err we return as side-effect */
+ 		(void) write_record(&da);
++		error = da.da_err;
+ 	}
+ 
+-	dsl_dataset_long_rele(tosnap, FTAG);
+-	dsl_dataset_rele(tosnap, FTAG);
++done:
++	if (dp)
++		dsl_pool_rele(dp, FTAG);
++	si_teardown(&da.da_from, dp == NULL, FTAG);
++	si_teardown(&da.da_to, dp == NULL, FTAG);
+ 
+-	return (da.da_err);
++	return (error);
+ }
+diff --git a/module/zfs/dsl_dataset.c b/module/zfs/dsl_dataset.c
+index 2d6e95e31..d86d61b46 100644
+--- a/module/zfs/dsl_dataset.c
++++ b/module/zfs/dsl_dataset.c
+@@ -28,6 +28,7 @@
+  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
+  * Copyright 2017 Nexenta Systems, Inc.
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ #include <sys/dmu_objset.h>
+@@ -2022,6 +2023,10 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
+ 	boolean_t needsuspend;
+ 	void *cookie;
+ 
++	/* dataset name + 1 for the "@" + the new snapshot name must fit */
++	if (strlen(fsname) + 1 + strlen(snapname) >= ZFS_MAX_DATASET_NAME_LEN)
++		return (SET_ERROR(ENAMETOOLONG));
++
+ 	ddsta.ddsta_fsname = fsname;
+ 	ddsta.ddsta_snapname = snapname;
+ 	ddsta.ddsta_cleanup_minor = cleanup_minor;
+diff --git a/module/zfs/zfs_ioctl.c b/module/zfs/zfs_ioctl.c
+index d55ce20ef..dcf6a8659 100644
+--- a/module/zfs/zfs_ioctl.c
++++ b/module/zfs/zfs_ioctl.c
+@@ -36,7 +36,7 @@
+  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+  * Copyright 2017 RackTop Systems.
+  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+- * Copyright (c) 2019 Datto Inc.
++ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
+  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+  */
+ 
+@@ -1099,13 +1099,33 @@ zfs_secpolicy_config(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+ static int
+ zfs_secpolicy_diff(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+ {
+-	int error;
++	int err;
+ 
+-	if ((error = secpolicy_sys_config(cr, B_FALSE)) == 0)
++	if ((err = secpolicy_sys_config(cr, B_FALSE)) == 0)
+ 		return (0);
+ 
+-	error = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
+-	return (error);
++	err = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
++	return (err);
++}
++
++/*
++ * Policy for object to name lookups (both from and to datasets).
++ */
++/* ARGSUSED */
++static int
++zfs_secpolicy_diff2(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
++{
++	int err;
++
++	if ((err = secpolicy_sys_config(cr, B_FALSE)) == 0)
++		return (0);
++
++	err = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
++	if (err == 0) {
++		err = zfs_secpolicy_write_perms(zc->zc_value,
++		    ZFS_DELEG_PERM_DIFF, cr);
++	}
++	return (err);
+ }
+ 
+ /*
+@@ -1842,7 +1862,8 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
+ 		dmu_objset_rele_flags(os, B_TRUE, FTAG);
+ 		return (SET_ERROR(EINVAL));
+ 	}
+-	error = zfs_obj_to_stats(os, zc->zc_obj, &zc->zc_stat, zc->zc_value,
++	error = zfs_obj_to_stats(os, zc->zc_obj, &zc->zc_stat,
++	    (zc->zc_flags & ZOS_NO_PATH) ? NULL : zc->zc_value,
+ 	    sizeof (zc->zc_value));
+ 	dmu_objset_rele_flags(os, B_TRUE, FTAG);
+ 
+@@ -6039,6 +6060,107 @@ zfs_ioc_diff(zfs_cmd_t *zc)
+ 	return (error);
+ }
+ 
++static int
++dump_zap(objset_t *os, uint64_t obj, zfs_dump_zap_flags_t flags, zfs_file_t *fp)
++{
++	dmu_buf_t *db;
++	dmu_object_info_t doi;
++	uint64_t count;
++	zap_cursor_t zc;
++	zap_attribute_t za;
++	int err;
++
++	/* ensure zap object */
++	err = dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH);
++	if (err != 0)
++		return (err);
++	dmu_object_info_from_db(db, &doi);
++	dmu_buf_rele(db, FTAG);
++	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
++		return (SET_ERROR(EINVAL));
++
++	err = zap_count(os, obj, &count);
++	if (err != 0)
++		return (err);
++
++	err = zfs_file_write(fp, &count, sizeof (count), NULL);
++	if (err != 0)
++		return (err);
++
++	for (zap_cursor_init(&zc, os, obj);
++	    (err = zap_cursor_retrieve(&zc, &za)) == 0;
++	    zap_cursor_advance(&zc)) {
++		if (flags & ZDZ_VALUE_ONLY) {
++			err = zfs_file_write(fp, &za.za_first_integer,
++			    sizeof (uint64_t), NULL);
++		} else {
++			zap_pair_record_t zpr;
++			zpr.zpr_value = za.za_first_integer;
++			strcpy(zpr.zpr_key, za.za_name);
++			err = zfs_file_write(fp, &zpr, sizeof (zpr), NULL);
++		}
++
++		if (err != 0)
++			break;
++	}
++	zap_cursor_fini(&zc);
++
++	return ((err == ENOENT) ? 0 : err);
++}
++
++/*
++ * inputs:
++ * zc_name		name of snapshot to enumerate
++ * zc_obj		zap object id
++ * zc_cookie		file descriptor to write path data on
++ * zc_flags		flags for operation (zfs_dump_zap_flags_t)
++ *
++ * outputs:
++ * count followed by zap_pair_record_t's to the file descriptor
++ */
++static int
++zfs_ioc_dump_zap(zfs_cmd_t *zc)
++{
++	zfs_file_t *fp;
++	objset_t *os;
++	dsl_dataset_t *snap;
++	dsl_pool_t *dp;
++	int err;
++
++	/* can only dump zaps from snapshots */
++	if (strchr(zc->zc_name, '@') == NULL)
++		return (SET_ERROR(EINVAL));
++
++	err = zfs_file_get(zc->zc_cookie, &fp);
++	if (err != 0)
++		return (err);
++
++	err = dsl_pool_hold(zc->zc_name, FTAG, &dp);
++	if (err != 0)
++		goto out;
++
++	err = dsl_dataset_hold_flags(dp, zc->zc_name, DS_HOLD_FLAG_DECRYPT,
++	    FTAG, &snap);
++	if (err != 0) {
++		dsl_pool_rele(dp, FTAG);
++		goto out;
++	}
++
++	dsl_dataset_long_hold(snap, FTAG);
++	err = dmu_objset_from_ds(snap, &os);
++	dsl_pool_rele(dp, FTAG);
++
++	if (err == 0)
++		err = dump_zap(os, zc->zc_obj, zc->zc_flags, fp);
++
++	dsl_dataset_long_rele(snap, FTAG);
++	dsl_dataset_rele_flags(snap, DS_HOLD_FLAG_DECRYPT, FTAG);
++
++out:
++	zfs_file_put(zc->zc_cookie);
++	return (err);
++}
++
+ static int
+ zfs_ioc_smb_acl(zfs_cmd_t *zc)
+ {
+@@ -7136,7 +7258,9 @@ zfs_ioctl_init(void)
+ 	    zfs_ioc_send_progress);
+ 
+ 	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_DIFF,
+-	    zfs_ioc_diff, zfs_secpolicy_diff);
++	    zfs_ioc_diff, zfs_secpolicy_diff2);
++	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_DUMP_ZAP,
++	    zfs_ioc_dump_zap, zfs_secpolicy_diff);
+ 	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_OBJ_TO_STATS,
+ 	    zfs_ioc_obj_to_stats, zfs_secpolicy_diff);
+ 	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_OBJ_TO_PATH,
+diff --git a/tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c b/tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c
+index 00924dda9..23b81ee17 100644
+--- a/tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c
++++ b/tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c
+@@ -15,6 +15,7 @@
+ 
+ /*
+  * Copyright (c) 2018 by Delphix. All rights reserved.
++ * Copyright (c) 2020, Datto Inc. All rights reserved.
+  */
+ 
+ #include <stdio.h>
+@@ -106,6 +107,7 @@ static unsigned ioc_skip[] = {
+ 	ZFS_IOC_NEXTBOOT,
+ 	ZFS_IOC_JAIL,
+ 	ZFS_IOC_UNJAIL,
++	ZFS_IOC_DUMP_ZAP,
+ };
+ 
+ 
+@@ -1015,6 +1017,7 @@ validate_ioc_values(void)
+ 	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
+ 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
+ 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
++	CHECK(ZFS_IOC_BASE + 85 == ZFS_IOC_DUMP_ZAP);
+ 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
+ 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
+ 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
+-- 
+2.17.1
+

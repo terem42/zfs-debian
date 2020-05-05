@@ -1,0 +1,6 @@
+# They sourced /etc/zfs/zfs-functions which sources init-functions
+init.d-script-does-not-source-init-functions
+script-not-executable
+# https://github.com/zfsonlinux/zfs/issues/8064
+init.d-script-missing-dependency-on-local_fs
+systemd-service-file-refers-to-unusual-wantedby-target

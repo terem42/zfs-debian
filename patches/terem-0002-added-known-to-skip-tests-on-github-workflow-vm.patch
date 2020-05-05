@@ -1,0 +1,39 @@
+From ba83751241ef92693f44ab2504c326c43b353fc0 Mon Sep 17 00:00:00 2001
+From: Andrey Prokopenko <9478806+andrey42@users.noreply.github.com>
+Date: Wed, 15 Jul 2020 13:49:28 +0200
+Subject: [PATCH] update
+
+---
+ tests/test-runner/bin/zts-report.py.in | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
+index c68325a15..6e52da41a 100755
+--- a/tests/test-runner/bin/zts-report.py.in
++++ b/tests/test-runner/bin/zts-report.py.in
+@@ -127,6 +127,9 @@ trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
+ #
+ na_reason = "Not applicable"
+ 
++# cannot properly execute on Github Actions
++github_actions_vm_skip_reason = 'known to be skipped on Github Actions virtual machines'
++
+ summary = {
+     'total': float(0),
+     'passed': float(0),
+@@ -156,6 +159,12 @@ known = {
+     'rootpool/setup': ['SKIP', na_reason],
+     'rsend/rsend_008_pos': ['SKIP', '6066'],
+     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
++    'cli_root/zpool_reopen/zpool_reopen_004_pos': ['FAIL',github_actions_vm_skip_reason],
++    'reservation/reservation_013_pos': ['FAIL',github_actions_vm_skip_reason],
++    'reservation/reservation_015_pos': ['FAIL',github_actions_vm_skip_reason],
++    'reservation/reservation_016_pos': ['FAIL',github_actions_vm_skip_reason],
++    'mmp/mmp_exported_import': ['FAIL',github_actions_vm_skip_reason],
++    'mmp/mmp_inactive_import': ['FAIL',github_actions_vm_skip_reason],
+ }
+ 
+ if sys.platform.startswith('freebsd'):
+-- 
+2.17.1
+

@@ -1,0 +1,470 @@
+From e391ab324b0dd7b1d8ba1d3e8e0e1f3fa5817930 Mon Sep 17 00:00:00 2001
+From: Richard Laager <rlaager@wiktel.com>
+Date: Sat, 2 May 2020 18:46:46 -0500
+Subject: [PATCH] Unlock encrypted root partition over SSH
+
+This commit add a new feature for Debian-based distributions to unlock
+encrypted root partition over SSH.  This feature is very handy on
+headless NAS or VPS cloud servers.  To use this feature, you will need
+to install the dropbear-initramfs package.
+
+Signed-off-by: Andrey Prokopenko <job@terem.fr>
+Signed-off-by: Richard Laager <rlaager@wiktel.com>
+---
+ configure.ac                                  |   2 +
+ contrib/initramfs/Makefile.am                 |  20 +-
+ contrib/initramfs/README.initramfs.markdown   | 180 +++++++++---------
+ contrib/initramfs/conf-hooks.d/Makefile.am    |   4 +
+ contrib/initramfs/conf.d/Makefile.am          |   4 +
+ contrib/initramfs/hooks/.gitignore            |   1 +
+ contrib/initramfs/hooks/Makefile.am           |  17 +-
+ contrib/initramfs/hooks/zfs.in                |   1 +
+ contrib/initramfs/hooks/zfsunlock.in          |  18 ++
+ .../initramfs/scripts/local-top/Makefile.am   |   3 +-
+ contrib/initramfs/scripts/zfs                 |  12 +-
+ contrib/initramfs/zfsunlock                   |  42 ++++
+ 12 files changed, 181 insertions(+), 123 deletions(-)
+ create mode 100644 contrib/initramfs/conf-hooks.d/Makefile.am
+ create mode 100644 contrib/initramfs/conf.d/Makefile.am
+ create mode 100644 contrib/initramfs/hooks/zfsunlock.in
+ create mode 100755 contrib/initramfs/zfsunlock
+
+diff --git a/configure.ac b/configure.ac
+index 902108f36..9f20b2bea 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -92,6 +92,8 @@ AC_CONFIG_FILES([
+ 	contrib/dracut/90zfs/Makefile
+ 	contrib/dracut/Makefile
+ 	contrib/initramfs/Makefile
++	contrib/initramfs/conf.d/Makefile
++	contrib/initramfs/conf-hooks.d/Makefile
+ 	contrib/initramfs/hooks/Makefile
+ 	contrib/initramfs/scripts/Makefile
+ 	contrib/initramfs/scripts/local-top/Makefile
+diff --git a/contrib/initramfs/Makefile.am b/contrib/initramfs/Makefile.am
+index 849b1d83c..ee17de096 100644
+--- a/contrib/initramfs/Makefile.am
++++ b/contrib/initramfs/Makefile.am
+@@ -1,23 +1,9 @@
+ initrddir = /usr/share/initramfs-tools
+ 
+-initrd_SCRIPTS = \
+-	conf.d/zfs conf-hooks.d/zfs hooks/zfs scripts/zfs scripts/local-top/zfs
++dist_initrd_SCRIPTS = \
++       zfsunlock
+ 
+-SUBDIRS = hooks scripts
++SUBDIRS = conf.d conf-hooks.d hooks scripts
+ 
+ EXTRA_DIST = \
+-	$(top_srcdir)/contrib/initramfs/conf.d/zfs \
+-	$(top_srcdir)/contrib/initramfs/conf-hooks.d/zfs \
+ 	$(top_srcdir)/contrib/initramfs/README.initramfs.markdown
+-
+-install-initrdSCRIPTS: $(EXTRA_DIST)
+-	for d in conf.d conf-hooks.d scripts/local-top; do \
+-		$(MKDIR_P) $(DESTDIR)$(initrddir)/$$d; \
+-		cp $(top_srcdir)/contrib/initramfs/$$d/zfs \
+-		    $(DESTDIR)$(initrddir)/$$d/; \
+-	done
+-	for d in hooks scripts; do \
+-		$(MKDIR_P) $(DESTDIR)$(initrddir)/$$d; \
+-		cp $(top_builddir)/contrib/initramfs/$$d/zfs \
+-		    $(DESTDIR)$(initrddir)/$$d/; \
+-	done
+diff --git a/contrib/initramfs/README.initramfs.markdown b/contrib/initramfs/README.initramfs.markdown
+index fa19f001a..ddae71a2e 100644
+--- a/contrib/initramfs/README.initramfs.markdown
++++ b/contrib/initramfs/README.initramfs.markdown
+@@ -1,94 +1,86 @@
+-DESCRIPTION
+-  These scripts are intended to be used with initramfs-tools, which is a similar
+-  software product to "dracut" (which is used in RedHat based distributions),
+-  and is mainly used by Debian GNU/Linux and derivatives to create an initramfs
+-  so that the system can be booted off a ZFS filesystem. If you have no need or
+-  interest in this, then it can safely be ignored.
+-
+-  These script were written with the primary intention of being portable and
+-  usable on as many systems as possible.
+-
+-  This is, in practice, usually not possible. But the intention is there.
+-  And it is a good one.
+-
+-  They have been tested successfully on:
+-
+-    * Debian GNU/Linux Wheezy
+-    * Debian GNU/Linux Jessie
+-
+-  It uses some functionality common with the SYSV init scripts, primarily
+-  the "/etc/zfs/zfs-functions" script.
+-
+-FUNCTIONALITY
+-  * Supports booting of a ZFS snapshot.
+-    Do this by cloning the snapshot into a dataset. If this, the resulting
+-    dataset, already exists, destroy it. Then mount it as the root filesystem.
+-    * If snapshot does not exist, use base dataset (the part before '@')
+-      as boot filesystem instead.
+-    * Clone with 'mountpoint=none' and 'canmount=noauto' - we mount manually
+-      and explicitly.
+-    * Allow rollback of snapshots instead of clone it and boot from the clone.
+-    * If no snapshot is specified on the 'root=' kernel command line, but
+-      there is an '@', then get a list of snapshots below that filesystem
+-      and ask the user which to use.
+-
+-  * Support all currently used kernel command line arguments
+-    * Core options:
+-      All the different distributions have their own standard on what to specify
+-      on the kernel command line to boot of a ZFS filesystem.
+-
+-      Supports the following kernel command line argument combinations
+-      (in this order - first match win):
+-      * rpool=<pool>			(tries to finds bootfs automatically)
+-      * bootfs=<pool>/<dataset>		(uses this for rpool - first part)
+-      * rpool=<pool> bootfs=<pool>/<dataset>
+-      * -B zfs-bootfs=<pool>/<fs>	(uses this for rpool - first part)
+-      * rpool=rpool			(default if none of the above is used)
+-      * root=<pool>/<dataset>		(uses this for rpool - first part)
+-      * root=ZFS=<pool>/<dataset>	(uses this for rpool - first part, without 'ZFS=')
+-      * root=zfs:AUTO			(tries to detect both pool and rootfs
+-      * root=zfs:<pool>/<dataset>	(uses this for rpool - first part, without 'zfs:')
+-
+-      Option <dataset> could also be <snapshot>
+-    * Extra (control) options:
+-      * zfsdebug=(on,yes,1)   Show extra debugging information
+-      * zfsforce=(on,yes,1)   Force import the pool
+-      * rollback=(on,yes,1)   Rollback (instead of clone) the snapshot
+-
+-  * 'Smarter' way to import pools. Don't just try cache file or /dev.
+-    * Try to use /dev/disk/by-vdev (if /etc/zfs/vdev_id.conf exists),
+-    * Try /dev/mapper (to be able to use LUKS backed pools as well as
+-      multi-path devices).
+-    * /dev/disk/by-id and any other /dev/disk/by-* directory that may exist.
+-    * Use /dev as a last ditch attempt.
+-    * Fallback to using the cache file if that exist if nothing else worked.
+-    * Only try to import pool if it haven't already been imported
+-      * This will negate the need to force import a pool that have not been
+-        exported cleanly.
+-      * Support exclusion of pools to import by setting ZFS_POOL_EXCEPTIONS
+-         in /etc/default/zfs.
+-
+-    Controlling in which order devices is searched for is controlled by
+-    ZPOOL_IMPORT_PATH variable set in /etc/defaults/zfs.
+-
+-  * Support additional configuration variable ZFS_INITRD_ADDITIONAL_DATASETS
+-    to mount additional filesystems not located under your root dataset.
+-
+-    For example, if the root fs is specified as 'rpool/ROOT/rootfs', it will
+-    automatically and without specific configuration mount any filesystems
+-    below this on the mount point specified in the 'mountpoint' property.
+-    Such as 'rpool/root/rootfs/var', 'rpool/root/rootfs/usr' etc)
+-
+-    However, if one prefer to have separate filesystems, not located below
+-    the root fs (such as 'rpool/var', 'rpool/ROOT/opt' etc), special
+-    configuration needs to be done. This is what the variable, set in
+-    /etc/defaults/zfs file, needs to be configured. The 'mountpoint'
+-    property needs to be correct for this to work though.
+-
+-  * Allows mounting a rootfs with mountpoint=legacy set.
+-
+-  * Include /etc/modprobe.d/{zfs,spl}.conf in the initrd if it/they exist.
+-
+-  * Include the udev rule to use by-vdev for pool imports.
+-
+-  * Include the /etc/default/zfs file to the initrd.
++## Description
++
++These scripts are intended to be used with `initramfs-tools`, which is a
++similar software product to `dracut` (which is used in Red Hat based
++distributions), and is mainly used by Debian GNU/Linux and derivatives.
++
++These scripts share some common functionality with the SysV init scripts,
++primarily the `/etc/zfs/zfs-functions` script.
++
++## Configuration
++
++### Root pool/filesystem
++
++Different distributions have their own standard on what to specify on the
++kernel command line to boot off a ZFS filesystem.
++
++This script supports the following kernel command line argument combinations
++(in this order - first match wins):
++
++* `rpool=<pool>`
++* `bootfs=<pool>/<dataset>`
++* `rpool=<pool> bootfs=<pool>/<dataset>`
++* `-B zfs-bootfs=<pool>/<fs>`
++* `root=<pool>/<dataset>`
++* `root=ZFS=<pool>/<dataset>`
++* `root=zfs:AUTO`
++* `root=zfs:<pool>/<dataset>`
++* `rpool=rpool`
++
++If a pool is specified, it will be used.  Otherwise, in `AUTO` mode, all pools
++will be searched.  Pools may be excluded from the search by listing them in
++`ZFS_POOL_EXCEPTIONS` in `/etc/default/zfs`.
++
++Pools will be imported as follows:
++
++* Try `/dev/disk/by-vdev` if it exists; see `/etc/zfs/vdev_id.conf`.
++* Try `/dev/disk/by-id` and any other `/dev/disk/by-*` directories.
++* Try `/dev`.
++* Use the cache file if nothing else worked.
++
++This order may be modified by setting `ZPOOL_IMPORT_PATH` in
++`/etc/default/zfs`.
++
++If a dataset is specified, it will be used as the root filesystem.  Otherwise,
++this script will attempt to find a root filesystem automatically (in the
++specified pool or all pools, as described above).
++
++Filesystems below the root filesystem will be automatically mounted with no
++additional configuration necessary.  For example, if the root filesystem is
++`rpool/ROOT/rootfs`, `rpool/root/rootfs/var`, `rpool/root/rootfs/usr`, etc.
++will be mounted (if they exist).  Additional filesystems (that are not located
++under the root filesystem) can be mounted by listing them in
++`ZFS_INITRD_ADDITIONAL_DATASETS` in `/etc/default/zfs`.
++
++### Snapshots
++
++The `<dataset>` can be a snapshot.  In this case, the snapshot will be cloned
++and the clone used as the root filesystem.  Note:
++
++* If the snapshot does not exist, the base dataset (the part before `@`) is
++  used as the boot filesystem instead.
++* If the resulting clone dataset already exists, it is destroyed.
++* The clone is created with `mountpoint=none` and `canmount=noauto`.  The root
++  filesystem is mounted manually by the initramfs script.
++* If no snapshot is specified on the `root=` kernel command line, but
++  there is an `@`, the user will be prompted to choose a snapshot to use.
++
++### Extra options
++
++The following kernel command line arguments are supported:
++
++* `zfsdebug=(on,yes,1)`: Show extra debugging information
++* `zfsforce=(on,yes,1)`: Force import the pool
++* `rollback=(on,yes,1)`: Rollback to (instead of clone) the snapshot
++
++### Unlocking a ZFS encrypted root over SSH
++
++To use this feature:
++
++1. Install the `dropbear-initramfs` package.  You may wish to uninstall the
++   `cryptsetup-initramfs` package to avoid warnings.
++2. Add your SSH key(s) to `/etc/dropbear-initramfs/authorized_keys`.  Note
++   that Dropbear does not support ed25519 keys; use RSA (2048-bit or more)
++   instead.
++3. Rebuild the initramfs with your keys: `update-initramfs -u`
++4. During the system boot, login via SSH and run: `zfsunlock`
+diff --git a/contrib/initramfs/conf-hooks.d/Makefile.am b/contrib/initramfs/conf-hooks.d/Makefile.am
+new file mode 100644
+index 000000000..f84ba5cc7
+--- /dev/null
++++ b/contrib/initramfs/conf-hooks.d/Makefile.am
+@@ -0,0 +1,4 @@
++confhooksddir = /usr/share/initramfs-tools/conf-hooks.d
++
++dist_confhooksd_DATA = \
++	zfs
+diff --git a/contrib/initramfs/conf.d/Makefile.am b/contrib/initramfs/conf.d/Makefile.am
+new file mode 100644
+index 000000000..5ef27e0aa
+--- /dev/null
++++ b/contrib/initramfs/conf.d/Makefile.am
+@@ -0,0 +1,4 @@
++confddir = /usr/share/initramfs-tools/conf.d
++
++dist_confd_DATA = \
++	zfs
+diff --git a/contrib/initramfs/hooks/.gitignore b/contrib/initramfs/hooks/.gitignore
+index 73304bc2c..4e1604e18 100644
+--- a/contrib/initramfs/hooks/.gitignore
++++ b/contrib/initramfs/hooks/.gitignore
+@@ -1 +1,2 @@
+ zfs
++zfsunlock
+diff --git a/contrib/initramfs/hooks/Makefile.am b/contrib/initramfs/hooks/Makefile.am
+index 3d8ef627e..9b20c080a 100644
+--- a/contrib/initramfs/hooks/Makefile.am
++++ b/contrib/initramfs/hooks/Makefile.am
+@@ -1,23 +1,20 @@
+ hooksdir = /usr/share/initramfs-tools/hooks
+ 
+ hooks_SCRIPTS = \
+-	zfs
++	zfs \
++	zfsunlock
+ 
+ EXTRA_DIST = \
+-	$(top_srcdir)/contrib/initramfs/hooks/zfs.in
++	$(top_srcdir)/contrib/initramfs/hooks/zfs.in \
++	$(top_srcdir)/contrib/initramfs/hooks/zfsunlock.in
+ 
+-$(hooks_SCRIPTS):%:%.in
++$(hooks_SCRIPTS):%:%.in Makefile
+ 	-$(SED) -e 's,@sbindir\@,$(sbindir),g' \
+ 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+ 		-e 's,@udevdir\@,$(udevdir),g' \
+ 		-e 's,@udevruledir\@,$(udevruledir),g' \
+ 		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
++		-e 's,@DEFAULT_INITCONF_DIR\@,$(DEFAULT_INITCONF_DIR),g' \
+ 		$< >'$@'
+ 
+-# Double-colon rules are allowed; there are multiple independent definitions.
+-clean-local::
+-	-$(RM) $(hooks_SCRIPTS)
+-
+-# Double-colon rules are allowed; there are multiple independent definitions.
+-distclean-local::
+-	-$(RM) $(hooks_SCRIPTS)
++CLEANFILES = $(hooks_SCRIPTS)
+diff --git a/contrib/initramfs/hooks/zfs.in b/contrib/initramfs/hooks/zfs.in
+index 15f23c908..ff7e49f12 100755
+--- a/contrib/initramfs/hooks/zfs.in
++++ b/contrib/initramfs/hooks/zfs.in
+@@ -21,6 +21,7 @@ COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
+ # These prerequisites are provided by the base system.
+ COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
+ COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/env"
++COPY_EXEC_LIST="$COPY_EXEC_LIST $(which systemd-ask-password)"
+ 
+ # Explicitly specify all kernel modules because automatic dependency resolution
+ # is unreliable on many systems.
+diff --git a/contrib/initramfs/hooks/zfsunlock.in b/contrib/initramfs/hooks/zfsunlock.in
+new file mode 100644
+index 000000000..c8ae86363
+--- /dev/null
++++ b/contrib/initramfs/hooks/zfsunlock.in
+@@ -0,0 +1,18 @@
++#!/bin/sh
++
++PREREQ="dropbear"
++
++prereqs() {
++    echo "$PREREQ"
++}
++
++case "$1" in
++    prereqs)
++        prereqs
++        exit 0
++    ;;
++esac
++
++. /usr/share/initramfs-tools/hook-functions
++
++copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin
+diff --git a/contrib/initramfs/scripts/local-top/Makefile.am b/contrib/initramfs/scripts/local-top/Makefile.am
+index c82032594..1523a907c 100644
+--- a/contrib/initramfs/scripts/local-top/Makefile.am
++++ b/contrib/initramfs/scripts/local-top/Makefile.am
+@@ -1,3 +1,4 @@
+ localtopdir = /usr/share/initramfs-tools/scripts/local-top
+ 
+-EXTRA_DIST = zfs
++dist_localtop_SCRIPTS = \
++        zfs
+diff --git a/contrib/initramfs/scripts/zfs b/contrib/initramfs/scripts/zfs
+index dbc4e253f..a795fd39f 100644
+--- a/contrib/initramfs/scripts/zfs
++++ b/contrib/initramfs/scripts/zfs
+@@ -405,6 +405,8 @@ decrypt_fs()
+ 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
+ 		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
+ 
++		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
++
+ 		# If root dataset is encrypted...
+ 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
+ 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
+@@ -418,6 +420,7 @@ decrypt_fs()
+ 
+ 			# Prompt with plymouth, if active
+ 			elif [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
++				echo "plymouth" > /run/zfs_console_askpwd_cmd
+ 				while [ $TRY_COUNT -gt 0 ]; do
+ 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
+ 						$ZFS load-key "${ENCRYPTIONROOT}" && break
+@@ -426,6 +429,7 @@ decrypt_fs()
+ 
+ 			# Prompt with systemd, if active 
+ 			elif [ -e /run/systemd/system ]; then
++				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
+ 				while [ $TRY_COUNT -gt 0 ]; do
+ 					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
+ 						$ZFS load-key "${ENCRYPTIONROOT}" && break
+@@ -434,7 +438,8 @@ decrypt_fs()
+ 
+ 			# Prompt with ZFS tty, otherwise
+ 			else
+-				# Setting "printk" temporarily to "7" will allow prompt even if kernel option "quiet"
++				# Temporarily setting "printk" to "7" allows the prompt to appear even when the "quiet" kernel option has been used
++				echo "load-key" > /run/zfs_console_askpwd_cmd
+ 				storeprintk="$(awk '{print $1}' /proc/sys/kernel/printk)"
+ 				echo 7 > /proc/sys/kernel/printk
+ 				$ZFS load-key "${ENCRYPTIONROOT}"
+@@ -964,6 +969,11 @@ mountroot()
+ 		mount_fs "$fs"
+ 	done
+ 
++	touch /run/zfs_unlock_complete
++	if [ -e /run/zfs_unlock_complete_notify ]; then
++		read zfs_unlock_complete_notify < /run/zfs_unlock_complete_notify
++	fi
++
+ 	# ------------
+ 	# Debugging information
+ 	if [ -n "${ZFS_DEBUG}" ]
+diff --git a/contrib/initramfs/zfsunlock b/contrib/initramfs/zfsunlock
+new file mode 100755
+index 000000000..1202a144d
+--- /dev/null
++++ b/contrib/initramfs/zfsunlock
+@@ -0,0 +1,42 @@
++#!/bin/sh
++
++set -eu
++if [ ! -e /run/zfs_fs_name ]; then
++	echo "Wait for the root pool to be imported or press Ctrl-C to exit."
++fi
++while [ ! -e /run/zfs_fs_name ]; do
++	if [ -e /run/zfs_unlock_complete ]; then
++		exit 0
++	fi
++	sleep 0.5
++done
++echo
++echo "Unlocking encrypted ZFS filesystems..."
++echo "Enter the password or press Ctrl-C to exit."
++echo
++zfs_fs_name=""
++if [ ! -e /run/zfs_unlock_complete_notify ]; then
++	mkfifo /run/zfs_unlock_complete_notify
++fi
++while [ ! -e /run/zfs_unlock_complete ]; do
++	zfs_fs_name=$(cat /run/zfs_fs_name)
++	zfs_console_askpwd_cmd=$(cat /run/zfs_console_askpwd_cmd)
++	systemd-ask-password "Encrypted ZFS password for ${zfs_fs_name}:" | \
++		/sbin/zfs load-key "$zfs_fs_name" || true
++	if [ "$(/sbin/zfs get -H -ovalue keystatus "$zfs_fs_name" 2> /dev/null)" = "available" ]; then
++		echo "Password for $zfs_fs_name accepted."
++		zfs_console_askpwd_pid=$(ps a -o pid= -o args | grep -v grep | grep "$zfs_console_askpwd_cmd" | cut -d ' ' -f3 | sort -n | head -n1)
++		if [ -n "$zfs_console_askpwd_pid" ]; then
++			kill "$zfs_console_askpwd_pid"
++		fi
++		# Wait for another filesystem to unlock.
++		while [ "$(cat /run/zfs_fs_name)" = "$zfs_fs_name" ] && [ ! -e /run/zfs_unlock_complete ]; do
++			sleep 0.5
++		done
++	else
++		echo "Wrong password.  Try again."
++	fi
++done
++echo "Unlocking complete.  Resuming boot sequence..."
++echo "Please reconnect in a while."
++echo "ok" > /run/zfs_unlock_complete_notify
+-- 
+2.24.0.windows.2
+

@@ -1,0 +1,37 @@
+Description: don't wait for links when volume has property keystatus=unavailable
+  zfs-volume-wait.service systemd unit does not start if the encrypted
+  zvol is locked. The /sbin/zvol_wait should not wait for links when the
+  volume has property keystatus=unavailable. This patch fixes this issue
+Bug: https://bugs.launchpad.net/ubuntu/+source/zfs-linux/+bug/1888405
+Author: James Dingwall
+Origin: ubuntu
+Forwarded: no
+Reviewed-By: Colin Ian King <colin.king@canonical.com>
+Last-Update: 2020-07-22
+
+--- a/cmd/zvol_wait/zvol_wait
++++ b/cmd/zvol_wait/zvol_wait
+@@ -24,6 +24,14 @@
+ 	done
+ }
+ 
++filter_out_locked_zvols() {
++	while read -r zvol; do
++		if ! [ "$(zfs list -H -o keystatus rpool/export/vault/block "$zvol")" = "unavailable" ]; then
++			echo "$zvol"
++		fi
++	done
++}
++
+ list_zvols() {
+ 	zfs list -t volume -H -o name,volmode,receive_resume_token |
+ 		while read -r zvol_line; do
+@@ -71,7 +79,7 @@
+ 	while [ "$inner_loop" -lt 30 ]; do
+ 		inner_loop=$((inner_loop + 1))
+ 
+-		zvols="$(echo "$zvols" | filter_out_zvols_with_links)"
++		zvols="$(echo "$zvols" | filter_out_zvols_with_links | filter_out_locked_zvols)"
+ 
+ 		zvols_count=$(count_zvols)
+ 		if [ "$zvols_count" -eq 0 ]; then
