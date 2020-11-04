@@ -1,5 +1,5 @@
-zfs-linux (0.8.5-1terem2) zfs-debian-experimental; urgency=medium
-  * upstream commit $github_sha
+zfs-linux (0.8.5-1terem$github_run_number) zfs-debian-experimental; urgency=medium
+  * upstream commit $upstream_sha
   * added patches for 11039 and 10391 pull requests from openzfs
   * updated version to 0.8.5
   * added terem 004 patch 

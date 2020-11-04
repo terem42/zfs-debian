@@ -15,7 +15,7 @@ jobs:
         run: |
           mkdir ~/zfs && cd ~/zfs
           git init
-          git fetch https://github.com/openzfs/zfs.git refs/heads/master
+          git fetch https://github.com/openzfs/zfs.git refs/heads/master --depth=1
           git checkout FETCH_HEAD
       - name: clone our zfs ubuntu repo
         shell: bash
@@ -36,7 +36,10 @@ jobs:
           echo "current folder"
           pwd
           cd ~/zfs
-          sed -i 's/\$github_sha/${{ github.sha }}/g' ./debian/changelog
+          sed -i "s/\$upstream_sha/$(git rev-parse HEAD)/g" ./debian/changelog
+          sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog
+
+
           ls ./debian/changelog
           dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
           mkdir ./zfs-deb-packages
