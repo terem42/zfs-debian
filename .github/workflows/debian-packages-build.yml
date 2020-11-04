@@ -38,9 +38,7 @@ jobs:
           cd ~/zfs
           sed -i "s/\$upstream_sha/$(git rev-parse HEAD)/g" ./debian/changelog
           sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog
-
-
-          ls ./debian/changelog
+          cat ./debian/changelog
           dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
           mkdir ./zfs-deb-packages
           cp ../*.deb ./zfs-deb-packages
