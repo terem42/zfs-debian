@@ -1,13 +1,11 @@
-zfs-linux (0.8.5-1terem1) zfs-debian-experimental; urgency=medium
-
-  * updated upstream openzfs/zfs commit 
-    to e191b60ddc2bc5697f2b28558f8156d4357d79c0
+zfs-linux (0.8.5-1terem2) zfs-debian-experimental; urgency=medium
+  * upstream commit $github_sha
+  * added patches for 11039 and 10391 pull requests from openzfs
   * updated version to 0.8.5
   * added terem 004 patch 
     based on 10278 github.com/openzfs/zfs pull request
   * updated terem 0003 patch
- -- Andrey (apt.terem.fr) <job@terem.fr>  Mon, 29 Sep 2020 08:36:00 -0100
-
+ -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 04 Nov 2020 08:36:00 -0100
 
 zfs-linux (0.8.4-1terem3) zfs-debian-experimental; urgency=medium
 

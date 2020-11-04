@@ -36,6 +36,7 @@ jobs:
           echo "current folder"
           pwd
           cd ~/zfs
+          sed -i 's/\$github_sha/${{ github.sha }}/g' ./debian/changelog
           ls ./debian/changelog
           dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
           mkdir ./zfs-deb-packages
