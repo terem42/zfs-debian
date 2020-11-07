@@ -1,0 +1,20 @@
+From 0e3c2cff6ff3da4e90389db77812dbca2aa518a8 Mon Sep 17 00:00:00 2001
+From: Pavel Zakharov <pavel.zakharov@delphix.com>
+Date: Thu, 5 Nov 2020 16:06:25 -0500
+Subject: [PATCH] initramfs: zfsunlock hook breaks /usr/bin
+
+Signed-off-by: Pavel Zakharov <pavel.zakharov@delphix.com>
+---
+ contrib/initramfs/hooks/zfsunlock.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/initramfs/hooks/zfsunlock.in b/contrib/initramfs/hooks/zfsunlock.in
+index c8ae8636398..d451726545d 100644
+--- a/contrib/initramfs/hooks/zfsunlock.in
++++ b/contrib/initramfs/hooks/zfsunlock.in
+@@ -15,4 +15,4 @@ esac
+ 
+ . /usr/share/initramfs-tools/hook-functions
+ 
+-copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin
++copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/zfsunlock
