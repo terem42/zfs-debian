@@ -27,5 +27,6 @@ enable-zed.patch
 10391_optimize_zfs_diff.patch
 10949_Added_a_reproducer_for_issue_10931.patch
 11162_zfsunlock_hook_breaks_usr_bin.patch
+11178_fix_dmu_tx_dirty_throttle.patch
 # 
 
