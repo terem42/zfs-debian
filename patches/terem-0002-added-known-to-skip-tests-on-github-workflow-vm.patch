@@ -1,14 +1,14 @@
-From ba83751241ef92693f44ab2504c326c43b353fc0 Mon Sep 17 00:00:00 2001
-From: Andrey Prokopenko <9478806+andrey42@users.noreply.github.com>
-Date: Wed, 15 Jul 2020 13:49:28 +0200
-Subject: [PATCH] update
+From be04bc5e29782dde05f394ec4d79416f675ef3ca Mon Sep 17 00:00:00 2001
+From: terem42 <9478806+terem42@users.noreply.github.com>
+Date: Tue, 10 Nov 2020 09:24:34 +0100
+Subject: [PATCH 1/1] added known to skip tests on github workflow
 
 ---
- tests/test-runner/bin/zts-report.py.in | 9 +++++++++
- 1 file changed, 9 insertions(+)
+ tests/test-runner/bin/zts-report.py.in | 4 ++++
+ 1 file changed, 4 insertions(+)
 
 diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
-index c68325a15..6e52da41a 100755
+index 6b5cd191c..645c91fa5 100755
 --- a/tests/test-runner/bin/zts-report.py.in
 +++ b/tests/test-runner/bin/zts-report.py.in
 @@ -127,6 +127,9 @@ trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
@@ -21,19 +21,14 @@ index c68325a15..6e52da41a 100755
  summary = {
      'total': float(0),
      'passed': float(0),
-@@ -156,6 +159,12 @@ known = {
-     'rootpool/setup': ['SKIP', na_reason],
-     'rsend/rsend_008_pos': ['SKIP', '6066'],
-     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
-+    'cli_root/zpool_reopen/zpool_reopen_004_pos': ['FAIL',github_actions_vm_skip_reason],
-+    'reservation/reservation_013_pos': ['FAIL',github_actions_vm_skip_reason],
-+    'reservation/reservation_015_pos': ['FAIL',github_actions_vm_skip_reason],
-+    'reservation/reservation_016_pos': ['FAIL',github_actions_vm_skip_reason],
-+    'mmp/mmp_exported_import': ['FAIL',github_actions_vm_skip_reason],
-+    'mmp/mmp_inactive_import': ['FAIL',github_actions_vm_skip_reason],
- }
+@@ -172,6 +175,7 @@ elif sys.platform.startswith('linux'):
+         'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
+         'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
+         'removal/removal_with_zdb': ['SKIP', known_reason],
++        'events/events_002_pos': ['FAIL',github_actions_vm_skip_reason],
+     })
  
- if sys.platform.startswith('freebsd'):
+ 
 -- 
-2.17.1
+2.24.0.windows.2
 
