@@ -64,7 +64,7 @@ jobs:
           - 'zpool_reopen,zpool_remove,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade,redacted_send,redundancy'
           - 'zfs_destroy,large_files,largest_pool,link_count,migration,inheritance,refquota,refreserv,rename_dirs,replacement,log_spacemap,persist_l2arc,reservation'
           - 'zfs,zfs_bookmark,zfs_change-key,zfs_clone,zfs_copies,zfs_create,zfs_diff,zfs_get,zfs_inherit,zfs_load-key,zfs_rename,mmap,mmp,mount,nestedfs,no_space,nopwrite,online_offline,pool_names,poolversion'
-          - 'zdb,mmp'
+          - 'zdb,mmp,trim'
           - 'privilege,quota,raidz,redundancy,rsend'
           - 'slog,snapshot,snapused,sparse,threadsappend,tmpfile,truncate,upgrade,userquota,vdev_zaps,write_dirs,xattr,zvol,libzfs'
     steps:
