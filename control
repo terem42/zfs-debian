@@ -61,7 +61,8 @@ Description: Solaris userland utility library for Linux
 Package: libzfslinux-dev
 Section: contrib/libdevel
 Architecture: linux-any
-Depends: libnvpair1linux (= ${binary:Version}),
+Depends: libssl-dev | libssl1.0-dev,
+         libnvpair1linux (= ${binary:Version}),
          libuutil1linux (= ${binary:Version}),
          libzfs2linux (= ${binary:Version}),
          libzpool2linux (= ${binary:Version}),
