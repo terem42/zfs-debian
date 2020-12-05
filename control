@@ -1,13 +1,14 @@
 Source: zfs-linux
 Section: contrib/kernel
 Priority: optional
-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Maintainer: Andrey Prokopenko <job@terem.fr>
 XSBC-Original-Maintainer: Debian ZFS on Linux maintainers <pkg-zfsonlinux-devel@alioth-lists.debian.net>
 Uploaders: Aron Xu <aron@debian.org>,
            Petter Reinholdtsen <pere@debian.org>,
            Carlos Alberto Lopez Perez <clopez@igalia.com>,
            Mo Zhou <cdluminate@gmail.com>
-Build-Depends: debhelper-compat (= 10),
+Build-Depends: abigail-tools,
+               debhelper-compat (= 10),
                dh-python,
                dkms (>> 2.1.1.2-5),
                libaio-dev,
