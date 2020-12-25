@@ -1,0 +1,109 @@
+From 420b657744aefd6ef8c55f514927622df45c58ec Mon Sep 17 00:00:00 2001
+From: Matthew Ahrens <mahrens@delphix.com>
+Date: Wed, 23 Dec 2020 09:52:24 -0800
+Subject: [PATCH] nvlist leaked in zpool_find_config()
+
+In `zpool_find_config()`, the `pools` nvlist is leaked.  Part of it (a
+sub-nvlist) is returned in `*configp`, but the callers also leak that.
+
+Additionally, in `zdb.c:main()`, the `searchdirs` is leaked.
+
+The leaks were detected by ASAN (`configure --enable-asan`).
+
+This commit resolves the leaks.
+
+Signed-off-by: Matthew Ahrens <mahrens@delphix.com>
+---
+ cmd/zdb/zdb.c               | 10 ++++++++++
+ cmd/zhack/zhack.c           |  1 +
+ cmd/ztest/ztest.c           |  1 +
+ lib/libzutil/zutil_import.c |  7 ++++---
+ 4 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/cmd/zdb/zdb.c b/cmd/zdb/zdb.c
+index ff0c61d643c..2541679adfb 100644
+--- a/cmd/zdb/zdb.c
++++ b/cmd/zdb/zdb.c
+@@ -8435,6 +8435,11 @@ main(int argc, char **argv)
+ 		}
+ 	}
+ 
++	if (searchdirs != NULL) {
++		umem_free(searchdirs, nsearch * sizeof (char *));
++		searchdirs = NULL;
++	}
++
+ 	/*
+ 	 * import_checkpointed_state makes the assumption that the
+ 	 * target pool that we pass it is already part of the spa
+@@ -8453,6 +8458,11 @@ main(int argc, char **argv)
+ 			target = checkpoint_target;
+ 	}
+ 
++	if (cfg != NULL) {
++		nvlist_free(cfg);
++		cfg = NULL;
++	}
++
+ 	if (target_pool != target)
+ 		free(target_pool);
+ 
+diff --git a/cmd/zhack/zhack.c b/cmd/zhack/zhack.c
+index 4d958fe4365..08263120c7c 100644
+--- a/cmd/zhack/zhack.c
++++ b/cmd/zhack/zhack.c
+@@ -150,6 +150,7 @@ zhack_import(char *target, boolean_t readonly)
+ 	zfeature_checks_disable = B_TRUE;
+ 	error = spa_import(target, config, props,
+ 	    (readonly ?  ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
++	fnvlist_free(config);
+ 	zfeature_checks_disable = B_FALSE;
+ 	if (error == EEXIST)
+ 		error = 0;
+diff --git a/cmd/ztest/ztest.c b/cmd/ztest/ztest.c
+index 4f6c931a3a4..21a7d4ad5d0 100644
+--- a/cmd/ztest/ztest.c
++++ b/cmd/ztest/ztest.c
+@@ -7153,6 +7153,7 @@ ztest_import_impl(ztest_shared_t *zs)
+ 	VERIFY0(zpool_find_config(NULL, ztest_opts.zo_pool, &cfg, &args,
+ 	    &libzpool_config_ops));
+ 	VERIFY0(spa_import(ztest_opts.zo_pool, cfg, NULL, flags));
++	fnvlist_free(cfg);
+ }
+ 
+ /*
+diff --git a/lib/libzutil/zutil_import.c b/lib/libzutil/zutil_import.c
+index b8cdc118b26..3a182729450 100644
+--- a/lib/libzutil/zutil_import.c
++++ b/lib/libzutil/zutil_import.c
+@@ -1539,7 +1539,7 @@ zpool_find_config(void *hdl, const char *target, nvlist_t **configp,
+ 	nvlist_t *pools;
+ 	nvlist_t *match = NULL;
+ 	nvlist_t *config = NULL;
+-	char *name = NULL, *sepp = NULL;
++	char *sepp = NULL;
+ 	char sep = '\0';
+ 	int count = 0;
+ 	char *targetdup = strdup(target);
+@@ -1563,11 +1563,11 @@ zpool_find_config(void *hdl, const char *target, nvlist_t **configp,
+ 					/* multiple matches found */
+ 					continue;
+ 				} else {
+-					match = config;
+-					name = nvpair_name(elem);
++					match = fnvlist_dup(config);
+ 				}
+ 			}
+ 		}
++		fnvlist_free(pools);
+ 	}
+ 
+ 	if (count == 0) {
+@@ -1577,6 +1577,7 @@ zpool_find_config(void *hdl, const char *target, nvlist_t **configp,
+ 
+ 	if (count > 1) {
+ 		free(targetdup);
++		fnvlist_free(match);
+ 		return (EINVAL);
+ 	}
+ 
