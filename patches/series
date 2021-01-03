@@ -27,6 +27,7 @@ terem-0002-added-known-to-skip-tests-on-github-workflow-vm.patch
 10391_optimize_zfs_diff.patch
 10949_Added_a_reproducer_for_issue_10931.patch
 11396_vlist_leaked_in_zpool_find_config.patch
+11355_added_extra_check_to_replace_faulted_vdev.patch
 #11283_update_zfs_share_concurrent_shares.patch
 #11162_zfsunlock_hook_breaks_usr_bin.patch
 #11178_fix_dmu_tx_dirty_throttle.patch

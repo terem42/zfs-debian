@@ -1,0 +1,29 @@
+From 3970980dc38421fe1a4e19b6daf249afdd12ceea Mon Sep 17 00:00:00 2001
+From: Srikanth N S <srikanth.nagasubbaraoseetharaman@hpe.com>
+Date: Wed, 16 Dec 2020 06:05:57 -0800
+Subject: [PATCH] Added extra check to replace Faulted VDEV with Distributed
+ Spare.
+
+In ZED zfs_retire agent added a check to handle Distributed Spare
+replacement for Faulted VDEV also.
+
+Co-authored-by: Vipin Kumar Verma <vipin.verma@hpe.com>
+Signed-off-by: Mark Maybee <mark.maybee@hpe.com>
+Closes #11354
+---
+ cmd/zed/agents/zfs_retire.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmd/zed/agents/zfs_retire.c b/cmd/zed/agents/zfs_retire.c
+index 89bb84e489b..1c4cc885b5e 100644
+--- a/cmd/zed/agents/zfs_retire.c
++++ b/cmd/zed/agents/zfs_retire.c
+@@ -334,7 +334,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
+ 	 */
+ 	if (strcmp(class, "resource.fs.zfs.removed") == 0 ||
+ 	    (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
+-	    state == VDEV_STATE_REMOVED)) {
++	    (state == VDEV_STATE_REMOVED || state == VDEV_STATE_FAULTED))) {
+ 		char *devtype;
+ 		char *devname;
+ 
