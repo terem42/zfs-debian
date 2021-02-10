@@ -1,0 +1,24 @@
+From 784b81040b3941714fdcfcc0b99364cb9c7f286c Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Tue, 9 Feb 2021 10:58:41 -0800
+Subject: [PATCH] Linux 5.11 compat: META
+
+Increase the Linux-Maximum version in the META file to 5.11.
+All of the required compatibility patches have been merged.
+
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+---
+ META | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/META b/META
+index 886da443357..abced52178a 100644
+--- a/META
++++ b/META
+@@ -6,5 +6,5 @@ Release:       rc1
+ Release-Tags:  relext
+ License:       CDDL
+ Author:        OpenZFS
+-Linux-Maximum: 5.10
++Linux-Maximum: 5.11
+ Linux-Minimum: 3.10
