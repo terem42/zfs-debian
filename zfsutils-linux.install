@@ -23,7 +23,7 @@ sbin/zpool
 sbin/zstream
 sbin/zstreamdump
 sbin/zfs_ids_to_path
-bin/zgenhostid /sbin/
+sbin/zgenhostid /sbin/
 usr/bin/zvol_wait /sbin/
 usr/lib/zfs-linux/zpool_influxdb
 usr/lib/modules-load.d/ lib/
