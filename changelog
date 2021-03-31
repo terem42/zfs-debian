@@ -3,7 +3,6 @@ zfs-linux (2.1.99-1terem$github_run_number) zfs-debian-experimental; urgency=med
  -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 31 Mar 2021 09:00:00 -0100
 
 zfs-linux (0.8.6-1terem$github_run_number) zfs-debian-experimental; urgency=medium
-  * upstream commit $upstream_sha
   * added patches for 11039 and 10391 pull requests from openzfs
   * updated version to 0.8.5
   * added terem 004 patch 
