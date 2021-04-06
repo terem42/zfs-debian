@@ -1,0 +1,99 @@
+From 31d710284fb49f09a0431aa7602531fd82a18348 Mon Sep 17 00:00:00 2001
+From: TerraTech <TerraTech@users.noreply.github.com>
+Date: Fri, 5 Mar 2021 04:56:05 -0800
+Subject: [PATCH] zpl_inode.c: Fix SMACK interoperability
+
+ closes: https://github.com/openzfs/zfs/issues/11646
+
+ ref: https://github.com/openzfs/zfs/issues/11646#issuecomment-802038607
+ ref: https://github.com/cschaufler/smack-next/issues/1
+
+  SMACK needs to have the ZFS dentry security field setup before SMACK's
+    d_instantiate() hook is called as it requires functioning
+    '__vfs_getxattr()' calls to properly set the labels.
+
+  Fixes:
+  1) file instantiation properly setting the object label to the
+     subject's label
+  2) proper file labelling in a transmutable directory
+
+  Functions Updated:
+  1) zpl_create()
+  2) zpl_mknod()
+  3) zpl_mkdir()
+  4) zpl_symlink()
+
+Signed-off-by: TerraTech <TerraTech@users.noreply.github.com>
+---
+ module/os/linux/zfs/zpl_inode.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/module/os/linux/zfs/zpl_inode.c b/module/os/linux/zfs/zpl_inode.c
+index cf0eab3e8c9..5e56445d85a 100644
+--- a/module/os/linux/zfs/zpl_inode.c
++++ b/module/os/linux/zfs/zpl_inode.c
+@@ -149,14 +149,14 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
+ 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
+ 	    mode, &zp, cr, 0, NULL);
+ 	if (error == 0) {
+-		d_instantiate(dentry, ZTOI(zp));
+-
+ 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+ 		if (error == 0)
+ 			error = zpl_init_acl(ZTOI(zp), dir);
+ 
+ 		if (error)
+ 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
++		else
++			d_instantiate(dentry, ZTOI(zp));
+ 	}
+ 
+ 	spl_fstrans_unmark(cookie);
+@@ -198,14 +198,14 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
+ 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
+ 	    mode, &zp, cr, 0, NULL);
+ 	if (error == 0) {
+-		d_instantiate(dentry, ZTOI(zp));
+-
+ 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+ 		if (error == 0)
+ 			error = zpl_init_acl(ZTOI(zp), dir);
+ 
+ 		if (error)
+ 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
++		else
++			d_instantiate(dentry, ZTOI(zp));
+ 	}
+ 
+ 	spl_fstrans_unmark(cookie);
+@@ -308,14 +308,14 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+ 	cookie = spl_fstrans_mark();
+ 	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL);
+ 	if (error == 0) {
+-		d_instantiate(dentry, ZTOI(zp));
+-
+ 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+ 		if (error == 0)
+ 			error = zpl_init_acl(ZTOI(zp), dir);
+ 
+ 		if (error)
+ 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
++		else
++			d_instantiate(dentry, ZTOI(zp));
+ 	}
+ 
+ 	spl_fstrans_unmark(cookie);
+@@ -488,11 +488,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
+ 	error = -zfs_symlink(ITOZ(dir), dname(dentry), vap,
+ 	    (char *)name, &zp, cr, 0);
+ 	if (error == 0) {
+-		d_instantiate(dentry, ZTOI(zp));
+-
+ 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+ 		if (error)
+ 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
++		else
++			d_instantiate(dentry, ZTOI(zp));
+ 	}
+ 
+ 	spl_fstrans_unmark(cookie);
