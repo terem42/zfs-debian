@@ -18,7 +18,6 @@ enable-zed.patch
 #4510-silently-ignore-modprobe-failure.patch
 #git_fix_dependency_loop_encryption1.patch
 #git_fix_dependency_loop_encryption2.patch
-#4520-Linux-5.8-compat-__vmalloc.patch
 #4521-enable-risc-v-isa.patch
 #4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
 #terem-0001-zed-service-start-stop-fix-for-tests-conducted-using.patch 
