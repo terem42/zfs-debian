@@ -29,7 +29,6 @@ enable-zed.patch
 #11586_set_kernel_ver_to_5_11.patch
 #11283_update_zfs_share_concurrent_shares.patch
 #11162_zfsunlock_hook_breaks_usr_bin.patch
-#11839_fix_SMACK_interoperability.patch
 #
 # 
 
