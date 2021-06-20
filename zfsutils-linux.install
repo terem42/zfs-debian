@@ -115,6 +115,13 @@ usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zstream.8
 usr/share/man/man8/zfs_ids_to_path.8
 usr/share/man/man8/zpool_influxdb.8
+usr/share/man/man4/zfs.4
+usr/share/man/man4/spl.4
+usr/share/man/man7/zfsconcepts.7
+usr/share/man/man7/zpool-features.7
+usr/share/man/man7/zpoolconcepts.7
+usr/share/man/man7/zpoolprops.7
+usr/share/man/man7/zfsprops.7
 usr/share/zfs/compatibility.d/freenas-11.2
 usr/share/zfs/compatibility.d/truenas-12.0
 usr/share/zfs/compatibility.d/compat-2018
