@@ -57,7 +57,6 @@ usr/share/man/man8/zpool-set.8
 usr/share/man/man8/zfs-inherit.8
 usr/share/man/man8/zpool-checkpoint.8
 usr/share/man/man8/zfs-create.8
-usr/share/man/man8/zfsconcepts.8
 usr/share/man/man8/zpool-upgrade.8
 usr/share/man/man8/zpool-initialize.8
 usr/share/man/man8/zpool-sync.8
@@ -90,7 +89,6 @@ usr/share/man/man8/zpool-trim.8
 usr/share/man/man8/zpool-add.8
 usr/share/man/man8/zfs-release.8
 usr/share/man/man8/zfs-change-key.8
-usr/share/man/man8/zpoolconcepts.8
 usr/share/man/man8/zfs-rename.8
 usr/share/man/man8/zpool-resilver.8
 usr/share/man/man8/zfs-unload-key.8
@@ -102,11 +100,9 @@ usr/share/man/man8/zpool-history.8
 usr/share/man/man8/zfs-recv.8
 usr/share/man/man8/zpool-split.8
 usr/share/man/man8/zfs-upgrade.8
-usr/share/man/man8/zpoolprops.8
 usr/share/man/man8/zfs-allow.8
 usr/share/man/man8/zpool-clear.8
 usr/share/man/man8/zpool-attach.8
-usr/share/man/man8/zfsprops.8
 usr/share/man/man8/zfs-receive.8
 usr/share/man/man8/zpool-scrub.8
 usr/share/man/man8/zfs-userspace.8
@@ -119,9 +115,6 @@ usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zstream.8
 usr/share/man/man8/zfs_ids_to_path.8
 usr/share/man/man8/zpool_influxdb.8
-usr/share/man/man8/zfsconcepts.8
-usr/share/man/man8/zpoolconcepts.8
-usr/share/man/man8/zpoolconcepts.8
 usr/share/zfs/compatibility.d/freenas-11.2
 usr/share/zfs/compatibility.d/truenas-12.0
 usr/share/zfs/compatibility.d/compat-2018
