@@ -58,7 +58,7 @@ jobs:
         testbatch:
           - 'alloc_class,limits,arc,channel_program,cp_files,deadman,btree,cache,history,hkdf,inuse,zfs_property,zfs_receive,zfs_reservation,zfs_send,zfs_set,zfs_share,zfs_snapshot,zfs_unload-key,zfs_unmount,zfs_unshare,zfs_upgrade,zpool,zpool_destroy,zpool_detach'
           - 'rootpool,scrub_mirror,pool_checkpoint'
-          - 'acl,atime,bootfs,cachefile,casenorm,chattr,checksum,clean_mirror,compression,ctime,delegate,devices,events,exec,fault,features,grow_pool'
+          - 'acl,atime,bootfs,cachefile,casenorm,chattr,checksum,clean_mirror,compression,crtime,ctime,delegate,devices,events,exec,fault,features,grow_pool'
           - 'grow_replicas,mv_files,cli_user,zfs_mount,zfs_promote,zfs_rollback,zpool_events,zpool_expand,zpool_export,zpool_add,zpool_attach,zpool_clear,zpool_create'
           - 'zpool_get,zpool_history,zpool_import,zpool_labelclear,zpool_offline,zpool_online'
           - 'zpool_reopen,zpool_remove,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade,redacted_send,redundancy'
