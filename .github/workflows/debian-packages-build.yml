@@ -180,7 +180,7 @@ jobs:
           rm -rf ./.git
           git init
           git checkout --orphan "gh-pages"
-          git remote add origin "https://x-access-token:${{ secrets.GITHUB_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git"
+          git remote add origin "https://x-access-token:${{ secrets.GH_PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git"
           git add --all
           git commit -am "automatic pages update from ${{ github.ref }} commit ${{ github.sha }}"
           git push --force --set-upstream origin gh-pages
