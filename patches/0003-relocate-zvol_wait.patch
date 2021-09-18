@@ -7,7 +7,7 @@ Forwarded: no need
  Type=oneshot
  RemainAfterExit=yes
 -ExecStart=@bindir@/zvol_wait
-+ExecStart=/sbin/zvol_wait
++ExecStart=@sbindir@/sbin/zvol_wait
  
  [Install]
  WantedBy=zfs-volumes.target
