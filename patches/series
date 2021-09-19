@@ -1,6 +1,6 @@
-dont-symlink-zed-scripts.patch
-0002-Check-for-META-and-DCH-consistency-in-autoconf.patch
-0003-relocate-zvol_wait.patch
-enable-zed.patch
+1dont-symlink-zed-scripts.patch
+10002-Check-for-META-and-DCH-consistency-in-autoconf.patch
+10003-relocate-zvol_wait.patch
+1enable-zed.patch
 
 
