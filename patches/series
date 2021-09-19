@@ -1,34 +1,6 @@
-#unapplied/init-debian-openrc-workaround.patch # OpenRC users can apply this locally
 dont-symlink-zed-scripts.patch
-#0001-Prevent-manual-builds-in-the-DKMS-source.patch
 0002-Check-for-META-and-DCH-consistency-in-autoconf.patch
 0003-relocate-zvol_wait.patch
-#0004-prefer-python3-tests.patch
 enable-zed.patch
-#1004-zed-service-bindir.patch
-#2100-zfs-load-module.patch
-#2200-add-zfs-0.6.x-ioctl-compat-shim.patch
-#3100-remove-libzfs-module-timeout.patch
-#3302-Use-obj-m-instead-of-subdir-m.patch
-#4000-mount-encrypted-dataset-fix.patch
-#4000-zsys-support.patch
-#4100-disable-bpool-upgrade.patch
-#force-verbose-rules.patch
-#zfs-mount-container-start.patch
-#4510-silently-ignore-modprobe-failure.patch
-#git_fix_dependency_loop_encryption1.patch
-#git_fix_dependency_loop_encryption2.patch
-#4521-enable-risc-v-isa.patch
-#4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
-#terem-0001-zed-service-start-stop-fix-for-tests-conducted-using.patch 
-#terem-0002-added-known-to-skip-tests-on-github-workflow-vm.patch
-#11039-Snapshot-directory-entries-missing-from-zfs-snapshot-folder.patch 
-#10391_optimize_zfs_diff.patch
-#11396_vlist_leaked_in_zpool_find_config.patch
-#11355_added_extra_check_to_replace_faulted_vdev.patch
-#11586_set_kernel_ver_to_5_11.patch
-#11283_update_zfs_share_concurrent_shares.patch
-#11162_zfsunlock_hook_breaks_usr_bin.patch
-#
-# 
+
 
