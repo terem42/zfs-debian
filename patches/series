@@ -2,6 +2,7 @@ dont-symlink-zed-scripts.patch
 0002-Check-for-META-and-DCH-consistency-in-autoconf.patch
 0003-relocate-zvol_wait.patch
 enable-zed.patch
+terem-0009-PR12586-initramfs-use-correct-dataset.patch
 
 #
 
