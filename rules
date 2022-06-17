@@ -116,9 +116,7 @@ override_dh_auto_install:
 	$(foreach file,$(DKMSFILESEXCLUDE),rm -r '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' || exit 1;)
 	@# Only ever build Linux modules
 	mkdir -p '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/'
-	echo 'bef123'
 	echo 'SUBDIRS = linux' >> '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/Makefile.am'
-	echo 'aft123'
 	@# Hellish awk line:
 	@#  * Deletes from configure.ac the parts not needed for building the kernel module
 	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
@@ -134,10 +132,14 @@ override_dh_auto_install:
 	@#	'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
 	@# Do not regenerate zfs_gitrev.h during dkms build
+	echo 'bef123'
 	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+	echo 'aft123'
 	@# Sanity test
+	echo 'bef456'
 	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+	echo 'aft456'
 	@# Run autogen on the stripped source tree
 	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
