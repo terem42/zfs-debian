@@ -1,0 +1,151 @@
+# Galician Translation of OpenZFS
+# Copyright (C) 2021
+# This file is distributed under the same license as the zfs-linux package.
+# Pablo <parodper@gmail.com>, 2021.
+# 
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2021-03-30 14:43+0800\n"
+"PO-Revision-Date: 2021-03-04 21:21+0100\n"
+"Last-Translator: Pablo <parodper@gmail.com>\n"
+"Language-Team: Galician <debian-l10n-galician-request@lists.debian.org>\n"
+"Language: gl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 2.2.1\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building OpenZFS on a 32-bit kernel?"
+msgstr "Abortar a compilación de OpenZFS nun núcleo de 32 bits?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
+msgstr "Estas intentando compilar OpenZFS cun núcleo de 32 bits en execución."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using OpenZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Inda que é posíbel, non damos soporte técnico á compilación nun ambiente de "
+"32 bits; por que é probable que non sexa estable e se corrompan os datos. "
+"Aconsellámosche con énfase que uses un núcleo de 64 bits; se estas seguro "
+"que queres usar OpenZFS neste núcleo date conta de que non che imos poder "
+"axudar."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building OpenZFS on an unknown kernel?"
+msgstr "Abortar a compilación de OpenZFS nun núcleo descoñecido?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build OpenZFS against a running kernel that could not "
+"be identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Estas intentando compilar OpenZFS cun núcleo en execución ao que non lle "
+"puidemos descubrir se é de 32 ou 64 bits. Se non estás completamente seguro "
+"de que teu núcleo é de 64 bits, deberías parar a compilación."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of OpenZFS and Linux are incompatible"
+msgstr "As licenzas de OpenZFS e Linux son incompatíbles"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"OpenZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"A licenza de OpenZFS é a Licencia Común de Desenvolvemento e Distribución, "
+"Common Development and Distribution License en inglés (CDDL), e o núcleo "
+"Linux está baixo a Licenza Pública Xeral GNU versión 2 (GPL-2). Inda que as "
+"dúas son licenzas de código aberto son licenzas con restricións. Combinalas "
+"causa problemas por que non permiten usar anacos de código baixo só unha das "
+"licenza con outros anacos de código baixo a outra licenza no mesmo binario."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build OpenZFS using DKMS in such a way that they are not "
+"going to be built into one monolithic binary. Please be aware that "
+"distributing both of the binaries in the same media (disk images, virtual "
+"appliances, etc) may lead to infringing."
+msgstr ""
+"Estas a piques de compilar OpenZFS usando DKMS dunha forma coa cal non se "
+"van compilar nun mesmo binario monolítico. Por favor ten en conta que "
+"distribuír os dous binarios dende o mesmo dispositivo (imaxes de disco, "
+"electrodomésticos virtuais, etc) pode infrinxir algunha licenza."
+
+#~ msgid "Scrub OpenZFS pools periodically?"
+#~ msgstr "Limpar as piscinas (pools) de OpenZFS de forma periódica?"
+
+#~ msgid ""
+#~ "Scrubbing storage pool data is a routine maintenance operation that check "
+#~ "all data against known checksums, and fix early problems like bit rots. "
+#~ "This operation is scheduled with low priority in the background, and "
+#~ "usually does not have big impact on performance when the pool is not "
+#~ "heavily utilized."
+#~ msgstr ""
+#~ "Limpar os datos de gardado nas piscinas (pools) é un mantemento rutineiro "
+#~ "que comproba todos os datos coas sumas de confirmación coñecidas, e "
+#~ "arranxa problemas precoces como a corrupción de bits. Esta operación de "
+#~ "baixa prioridade está programada para traballar de fondo, e non soe ter "
+#~ "un gran impacto non sistema cando as piscinas non se usan moito."
+
+#~ msgid ""
+#~ "Would you like to scrub all pools periodically? By default scrub jobs are "
+#~ "scheduled on every first Sunday of month."
+#~ msgstr ""
+#~ "Gustaríache que se limpasen todas as piscinas de forma periódica? Por "
+#~ "defecto as tarefas de limpado están programadas para o primeiro domingo "
+#~ "do mes."
+
+#~ msgid "TRIM SSD devices in OpenZFS pools periodically?"
+#~ msgstr ""
+#~ "Queres recortar (TRIM) de forma periódica os dispositivos SSD nas "
+#~ "piscinas do OpenZFS?"
+
+#~ msgid ""
+#~ "Some SSD devices require proper scheduling of TRIM commands to maintain "
+#~ "best performance. Would you like to TRIM SSD devices periodically?"
+#~ msgstr ""
+#~ "Algúns dispositivos SSD requiren unha programación correcta dos comandos "
+#~ "de recorte (TRIM) para manter un rendemento óptimo. Gustaríache que se "
+#~ "recortasen de forma regular os dispositivos SSD?"
+
+#~ msgid ""
+#~ "TRIM jobs are scheduled on every first Sunday of month to NVMe devices in "
+#~ "pools by default. You can choose to enable TRIM for all SSD or disable it "
+#~ "completely. If no suitable SSD device is found, nothing will be done."
+#~ msgstr ""
+#~ "Por defecto os traballos de recorte nos dispositivos NVMe nas piscinas "
+#~ "están programados para o primeiro domingo do mes. Se queres podes activar "
+#~ "o recorte para todos os discos SSD ou desactivalo por completo. Se non se "
+#~ "atopan dispositivos SSD adecuados non se fará nada."

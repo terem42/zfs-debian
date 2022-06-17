@@ -1,0 +1,7 @@
+Tests: kernel-smoke-test
+Restrictions: needs-root, isolation-machine
+Depends: zfs-dkms [ amd64 arm64 ppc64el s390x ],
+         zfs-initramfs [ amd64 arm64 ppc64el s390x ],
+         zfs-test [ amd64 arm64 ppc64el s390x ],
+         zfs-zed [ amd64 arm64 ppc64el s390x ],
+         zfsutils-linux [ amd64 arm64 ppc64el s390x ]

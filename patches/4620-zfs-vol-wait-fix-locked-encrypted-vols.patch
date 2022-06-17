@@ -9,10 +9,12 @@ Forwarded: no
 Reviewed-By: Colin Ian King <colin.king@canonical.com>
 Last-Update: 2020-07-22
 
---- a/cmd/zvol_wait/zvol_wait
-+++ b/cmd/zvol_wait/zvol_wait
-@@ -24,6 +24,14 @@
- 	done
+Index: zfs-linux/cmd/zvol_wait/zvol_wait
+===================================================================
+--- zfs-linux.orig/cmd/zvol_wait/zvol_wait
++++ zfs-linux/cmd/zvol_wait/zvol_wait
+@@ -25,6 +25,14 @@ filter_out_deleted_zvols() {
+ 	IFS="$OIFS"
  }
  
 +filter_out_locked_zvols() {
@@ -24,14 +26,14 @@ Last-Update: 2020-07-22
 +}
 +
  list_zvols() {
- 	zfs list -t volume -H -o name,volmode,receive_resume_token |
- 		while read -r zvol_line; do
-@@ -71,7 +79,7 @@
+ 	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
+ 	zfs list -t volume -H -o \
+@@ -72,7 +80,7 @@ while [ "$outer_loop" -lt 20 ]; do
  	while [ "$inner_loop" -lt 30 ]; do
  		inner_loop=$((inner_loop + 1))
  
--		zvols="$(echo "$zvols" | filter_out_zvols_with_links)"
-+		zvols="$(echo "$zvols" | filter_out_zvols_with_links | filter_out_locked_zvols)"
+-		zvols="$(filter_out_zvols_with_links)"
++		zvols="$(filter_out_zvols_with_links | filter_out_locked_zvols)"
  
  		zvols_count=$(count_zvols)
  		if [ "$zvols_count" -eq 0 ]; then

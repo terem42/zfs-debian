@@ -1,5 +1,0 @@
-lib/*.a usr/lib/
-usr/include
-usr/lib/*.so
-lib/pkgconfig/*.pc usr/share/pkgconfig/
-

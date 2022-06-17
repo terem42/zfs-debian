@@ -1,0 +1,15 @@
+Description: track default symlinks, instead of symlinking
+Forwarded: no need
+Index: zfs-linux/cmd/zed/zed.d/Makefile.am
+===================================================================
+--- zfs-linux.orig/cmd/zed/zed.d/Makefile.am
++++ zfs-linux/cmd/zed/zed.d/Makefile.am
+@@ -49,7 +49,7 @@ install-data-hook:
+ 	for f in $(zedconfdefaults); do \
+ 	  test -f "$(DESTDIR)$(zedconfdir)/$${f}" -o \
+ 	       -L "$(DESTDIR)$(zedconfdir)/$${f}" || \
+-	    ln -s "$(zedexecdir)/$${f}" "$(DESTDIR)$(zedconfdir)"; \
++	    echo "$${f}" >> "$(DESTDIR)$(zedexecdir)/DEFAULT-ENABLED" ; \
+ 	done
+ 	chmod 0600 "$(DESTDIR)$(zedconfdir)/zed.rc"
+ 

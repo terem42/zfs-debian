@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: zfs-linux 0.6.1-1\n"
 "Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
-"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"POT-Creation-Date: 2021-03-30 14:43+0800\n"
 "PO-Revision-Date: 2018-01-01 15:56+0500\n"
 "Last-Translator: Lev Lamberov <dogsleg@debian.org>\n"
 "Language-Team: Russian <man-pages-ru-talks@lists.sourceforge.net>\n"
@@ -22,14 +22,14 @@ msgstr ""
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:1001
-msgid "Abort building ZFS on a 32-bit kernel?"
-msgstr "Прервать сборку ZFS для 32-битного ядра?"
+msgid "Abort building OpenZFS on a 32-bit kernel?"
+msgstr "Прервать сборку OpenZFS для 32-битного ядра?"
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:1001
-msgid "You are attempting to build ZFS against a 32-bit running kernel."
-msgstr "Вы пытаетесь собрать ZFS для выполняющегося 32-битного ядра."
+msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
+msgstr "Вы пытаетесь собрать OpenZFS для выполняющегося 32-битного ядра."
 
 #. Type: boolean
 #. Description
@@ -37,70 +37,72 @@ msgstr "Вы пытаетесь собрать ZFS для выполняющег
 #. Description
 #: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
 msgid ""
-"Although possible, building in a 32-bit environment is unsupported and likely "
-"to cause instability leading to possible data corruption. You are strongly "
-"advised to use a 64-bit kernel; if you do decide to proceed with using ZFS on "
-"this kernel then keep in mind that it is at your own risk."
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using OpenZFS on this kernel then keep in mind that it is at your own risk."
 msgstr ""
 "Хотя это и возможно, сборка в 32-битном окружении не поддерживается, и, "
 "вероятно, она будет работать нестабильно, что может вызвать повреждение "
 "данных. Настоятельно рекомендуем использовать 64-битное ядро; если вы решите "
-"продолжить использовать ZFS с этим ядром, то вы делаете это на свой риск."
+"продолжить использовать OpenZFS с этим ядром, то вы делаете это на свой риск."
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:2001
-msgid "Abort building ZFS on an unknown kernel?"
-msgstr "Прервать сборку ZFS для неизвестного ядра?"
+msgid "Abort building OpenZFS on an unknown kernel?"
+msgstr "Прервать сборку OpenZFS для неизвестного ядра?"
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:2001
 msgid ""
-"You are attempting to build ZFS against a running kernel that could not be "
-"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"You are attempting to build OpenZFS against a running kernel that could not "
+"be identified as 32-bit or 64-bit. If you are not completely sure that the "
 "running kernel is a 64-bit one, you should probably stop the build."
 msgstr ""
-"Вы пытаетесь собрать ZFS для выполняющегося ядра с неизвестной разрядностью. "
-"Если вы не уверены полностью, что работающее ядро 64-битное, лучше прервать "
-"сборку."
+"Вы пытаетесь собрать OpenZFS для выполняющегося ядра с неизвестной "
+"разрядностью. Если вы не уверены полностью, что работающее ядро 64-битное, "
+"лучше прервать сборку."
 
 #. Type: note
 #. Description
 #: ../zfs-dkms.templates:3001
-msgid "Licenses of ZFS and Linux are incompatible"
-msgstr "Лицензии ZFS и Linux несовместимы"
-
-#. Type: note
-#. Description
-#: ../zfs-dkms.templates:3001
-msgid ""
-"ZFS is licensed under the Common Development and Distribution License (CDDL), "
-"and the Linux kernel is licensed under the GNU General Public License Version "
-"2 (GPL-2). While both are free open source licenses they are restrictive "
-"licenses. The combination of them causes problems because it prevents using "
-"pieces of code exclusively available under one license with pieces of code "
-"exclusively available under the other in the same binary."
-msgstr ""
-"Код ZFS выпущен под лицензией Common Development and Distribution License "
-"(CDDL), а ядро Linux выпущено под лицензией GNU General Public License Version "
-"2 (GPL-2). Хотя обе эти лицензии являются свободными лицензиями, они также "
-"являются ограничительными лицензиями. При их объединении возникают проблемы, "
-"поскольку объединённые условия лицензирования не позволяют использовать части "
-"кода, выпущенные исключительно под одной из указанных лицензий, вместе с "
-"частями кода, выпущенного исключительно под другой из указанных лицензий, в "
-"одной двоичной сборке."
+msgid "Licenses of OpenZFS and Linux are incompatible"
+msgstr "Лицензии OpenZFS и Linux несовместимы"
 
 #. Type: note
 #. Description
 #: ../zfs-dkms.templates:3001
 msgid ""
-"You are going to build ZFS using DKMS in such a way that they are not going to "
-"be built into one monolithic binary. Please be aware that distributing both of "
-"the binaries in the same media (disk images, virtual appliances, etc) may lead "
-"to infringing."
+"OpenZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
 msgstr ""
-"Код ZFS будет собран с использованием DKMS таким образом, что части кода под "
-"разными лицензиями не будут представлять собой монолитной двоичной сборки. "
-"Помните, что распространение обоих двоичных сборок на одном носителе (образы "
-"дисков, виртуальные устройства и проч.) может привести к нарушению закона."
+"Код OpenZFS выпущен под лицензией Common Development and Distribution "
+"License (CDDL), а ядро Linux выпущено под лицензией GNU General Public "
+"License Version 2 (GPL-2). Хотя обе эти лицензии являются свободными "
+"лицензиями, они также являются ограничительными лицензиями. При их "
+"объединении возникают проблемы, поскольку объединённые условия "
+"лицензирования не позволяют использовать части кода, выпущенные "
+"исключительно под одной из указанных лицензий, вместе с частями кода, "
+"выпущенного исключительно под другой из указанных лицензий, в одной двоичной "
+"сборке."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build OpenZFS using DKMS in such a way that they are not "
+"going to be built into one monolithic binary. Please be aware that "
+"distributing both of the binaries in the same media (disk images, virtual "
+"appliances, etc) may lead to infringing."
+msgstr ""
+"Код OpenZFS будет собран с использованием DKMS таким образом, что части кода "
+"под разными лицензиями не будут представлять собой монолитной двоичной "
+"сборки. Помните, что распространение обоих двоичных сборок на одном носителе "
+"(образы дисков, виртуальные устройства и проч.) может привести к нарушению "
+"закона."

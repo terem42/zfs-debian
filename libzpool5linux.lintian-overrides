@@ -1,0 +1,2 @@
+package-name-doesnt-match-sonames
+extra-license-file usr/share/doc/libzpool5linux/LICENSE.gz

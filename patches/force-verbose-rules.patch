@@ -1,14 +1,16 @@
 Description: force libtool to produce verbose output
 Author: Mo Zhou
 Forwarded: no need
---- a/config/Rules.am
-+++ b/config/Rules.am
-@@ -5,7 +5,7 @@
- 
- DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h
+Index: zfs-linux/config/Rules.am
+===================================================================
+--- zfs-linux.orig/config/Rules.am
++++ zfs-linux/config/Rules.am
+@@ -21,7 +21,7 @@ DEFAULT_INCLUDES += \
+ 	-I$(top_srcdir)/lib/libspl/include/os/freebsd
+ endif
  
 -AM_LIBTOOLFLAGS = --silent
 +AM_LIBTOOLFLAGS =
  
- AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -fno-strict-aliasing
- AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
+ AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes
+ AM_CFLAGS += -fno-strict-aliasing

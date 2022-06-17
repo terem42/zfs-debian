@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+autoreconf -fiv || exit 1
+rm -Rf autom4te.cache
+
 getKVERS(){
 	ver="$(ls -1 /usr/src/ | grep -P 'linux-headers-[\d\.]+' | sort -r | head -n1 | sed -e 's@.*linux-headers-\(.*\)-.*@\1@g')"
 	echo "$ver"

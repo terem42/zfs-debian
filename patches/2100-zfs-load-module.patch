@@ -1,9 +1,11 @@
 Description: explicitly load the ZFS module via systemd service
 Author: Ubuntu developers
 Forward: no need
---- a/etc/systemd/system/Makefile.am
-+++ b/etc/systemd/system/Makefile.am
-@@ -2,6 +2,7 @@
+Index: zfs-linux/etc/systemd/system/Makefile.am
+===================================================================
+--- zfs-linux.orig/etc/systemd/system/Makefile.am
++++ zfs-linux/etc/systemd/system/Makefile.am
+@@ -4,6 +4,7 @@ systemdpreset_DATA = \
  	50-zfs.preset
  
  systemdunit_DATA = \
@@ -11,17 +13,11 @@ Forward: no need
  	zfs-zed.service \
  	zfs-import-cache.service \
  	zfs-import-scan.service \
-@@ -13,6 +14,7 @@
- 	zfs.target
- 
- EXTRA_DIST = \
-+	$(top_srcdir)/etc/systemd/system/zfs-load-module.service.in \
- 	$(top_srcdir)/etc/systemd/system/zfs-zed.service.in \
- 	$(top_srcdir)/etc/systemd/system/zfs-import-cache.service.in \
- 	$(top_srcdir)/etc/systemd/system/zfs-import-scan.service.in \
---- a/etc/systemd/system/zfs-import-cache.service.in
-+++ b/etc/systemd/system/zfs-import-cache.service.in
-@@ -3,7 +3,9 @@
+Index: zfs-linux/etc/systemd/system/zfs-import-cache.service.in
+===================================================================
+--- zfs-linux.orig/etc/systemd/system/zfs-import-cache.service.in
++++ zfs-linux/etc/systemd/system/zfs-import-cache.service.in
+@@ -3,7 +3,9 @@ Description=Import ZFS pools by cache fi
  Documentation=man:zpool(8)
  DefaultDependencies=no
  Requires=systemd-udev-settle.service
@@ -31,9 +27,11 @@ Forward: no need
  After=cryptsetup.target
  After=multipathd.target
  After=systemd-remount-fs.service
---- a/etc/systemd/system/zfs-import-scan.service.in
-+++ b/etc/systemd/system/zfs-import-scan.service.in
-@@ -3,7 +3,9 @@
+Index: zfs-linux/etc/systemd/system/zfs-import-scan.service.in
+===================================================================
+--- zfs-linux.orig/etc/systemd/system/zfs-import-scan.service.in
++++ zfs-linux/etc/systemd/system/zfs-import-scan.service.in
+@@ -3,7 +3,9 @@ Description=Import ZFS pools by device s
  Documentation=man:zpool(8)
  DefaultDependencies=no
  Requires=systemd-udev-settle.service
@@ -43,8 +41,10 @@ Forward: no need
  After=cryptsetup.target
  After=multipathd.target
  Before=zfs-import.target
+Index: zfs-linux/etc/systemd/system/zfs-load-module.service.in
+===================================================================
 --- /dev/null
-+++ b/etc/systemd/system/zfs-load-module.service.in
++++ zfs-linux/etc/systemd/system/zfs-load-module.service.in
 @@ -0,0 +1,17 @@
 +[Unit]
 +Description=Install ZFS kernel module
@@ -63,20 +63,25 @@ Forward: no need
 +[Install]
 +WantedBy=zfs-mount.service
 +WantedBy=zfs.target
---- a/etc/systemd/system/50-zfs.preset.in
-+++ b/etc/systemd/system/50-zfs.preset.in
-@@ -7,3 +7,4 @@
+Index: zfs-linux/etc/systemd/system/50-zfs.preset.in
+===================================================================
+--- zfs-linux.orig/etc/systemd/system/50-zfs.preset.in
++++ zfs-linux/etc/systemd/system/50-zfs.preset.in
+@@ -7,3 +7,4 @@ enable zfs-share.service
  enable zfs-zed.service
  enable zfs-volume-wait.service
  enable zfs.target
 +enable zfs-load-module.service
---- a/contrib/dracut/90zfs/module-setup.sh.in
-+++ b/contrib/dracut/90zfs/module-setup.sh.in
-@@ -91,6 +91,7 @@
+Index: zfs-linux/contrib/dracut/90zfs/module-setup.sh.in
+===================================================================
+--- zfs-linux.orig/contrib/dracut/90zfs/module-setup.sh.in
++++ zfs-linux/contrib/dracut/90zfs/module-setup.sh.in
+@@ -104,7 +104,7 @@ install() {
  
  	if dracut_module_included "systemd"; then
  		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
-+		dracut_install @systemdunitdir@/zfs-load-module.service
- 		for _item in scan cache ; do
- 			dracut_install @systemdunitdir@/zfs-import-$_item.service
- 			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service ]; then
+-		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
++		for _service in "zfs-import-scan.service" "zfs-import-cache.service" "zfs-load-module.service" ; do
+ 			dracut_install "@systemdunitdir@/$_service"
+ 			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service" ]; then
+ 				ln -sf ../$_service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"

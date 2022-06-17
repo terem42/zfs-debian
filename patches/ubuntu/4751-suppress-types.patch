@@ -1,0 +1,73 @@
+Description: Suppress library type warning issues
+  Avoid build failures by supressing warnings on lib type ABI
+  differences
+Author: Colin Ian King <colin.king@canonical.com>
+Origin: ubuntu
+Forwarded: no 
+Last-Update: 2021-09-07
+
+Index: zfs-linux-2.0.3/lib/libnvpair/libnvpair.suppr
+===================================================================
+--- zfs-linux-2.0.3.orig/lib/libnvpair/libnvpair.suppr
++++ zfs-linux-2.0.3/lib/libnvpair/libnvpair.suppr
+@@ -1,2 +1,4 @@
+ [suppress_type]
+ 	name = FILE*
++[suppress_type]
++        name = regex_t
+Index: zfs-linux-2.0.3/lib/libzfs/libzfs.suppr
+===================================================================
+--- zfs-linux-2.0.3.orig/lib/libzfs/libzfs.suppr
++++ zfs-linux-2.0.3/lib/libzfs/libzfs.suppr
+@@ -11,3 +11,51 @@
+ 
+ [suppress_variable]
+ 	name = zfs_deleg_perm_tab
++
++[suppress_type]
++	name = regex_t
++
++[suppress_type]
++	name = zfs_handle_t
++
++[suppress_type]
++	name = differ_info_t
++
++[suppress_type]
++	name = renameflags_t
++
++[suppress_type]
++	name = splitflags_t
++
++[suppress_type]
++	name = libzfs_handle_t
++
++[suppress_type]
++	name = zfs_prop_t
++
++[suppress_type]
++	name = zfs_type_t
++
++[suppress_type]
++	name = zfs_share_proto_t
++
++[suppress_type]
++	name = zprop_source_t
++
++[suppress_type]
++	name = zprop_list_t
++
++[suppress_type]
++	name = zfs_userquota_prop_t
++
++[suppress_type]
++	name = zfs_wait_activity_t
++
++[suppress_type]
++	name = zfs_share_type_t
++
++[suppress_type]
++	name = pool_state_t
++
++[suppress_type]
++	name = nvpair_t

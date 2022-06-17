@@ -36,7 +36,7 @@ zpool create ${POOL} mirror ${VDEV0} ${VDEV1} mirror ${VDEV2} ${VDEV3}
 ret=$?
 if [ $ret -ne 0 ]; then
 	echo "FAILED: zpool create failed, exit code=$ret"
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
@@ -60,7 +60,7 @@ ret=$?
 if [ $ret -ne 0 ]; then
 	echo "FAILED: zpool detach failed, exit code=$ret"
 	zpool destroy ${POOL}
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
@@ -68,22 +68,48 @@ fi
 # Zero corrupted VDEV and re-attach
 #
 dd if=/dev/zero of=${VDEV0} bs=1M count=${VDEV_SZ} > /dev/null 2>&1
+sync
 zpool attach ${POOL} ${VDEV1} ${VDEV0} -f
 ret=$?
 if [ $ret -ne 0 ]; then
 	echo "FAILED: zpool attach failed, exit code=$ret"
 	zpool destroy ${POOL}
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
-sleep 10  # sometimes this may fail because pool is busy resilvering
-zpool scrub ${POOL}
-ret=$?
+resilvering=0
+#
+# Initial first check
+#
+n=$(zpool status | grep "resilvering" | wc -l)
+if [ $n -gt 0 ]; then
+	resilvering=1
+fi
+
+#
+#  ..and do the scrub
+#
+i=0
+while true
+do
+	(zpool scrub ${POOL}) > /dev/null 2>&1
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		sleep 1
+		i=$((i + 1))
+		sleep 1
+		if [ $i -gt 900 ]; then
+			break
+		fi
+	else
+		break
+	fi
+done
 if [ $ret -ne 0 ]; then
-	echo "FAILED: zpool scrub failed, exit code=$ret"
+	echo "FAILED: zpool scrub failed after $i attempts, exit code=$ret"
 	zpool destroy ${POOL}
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
@@ -94,7 +120,7 @@ sum2=$(md5sum ${DATA} | awk '{print $1}')
 if [ x"$sum1" != x"$sum2" ]; then
 	echo "FAILED: corrupted data on scrubbed pool"
 	zpool destroy ${POOL}
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
@@ -106,10 +132,16 @@ if [ $ret -ne 0 ]; then
 	# destroy failed, try to clean up, but this
 	# wil probably fail
 	#
-	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 	exit 1
 fi
 
-rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+rm -f ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
 echo "PASSED"
+echo "NOTE: zpool scrub completed after about $i second(s)"
+if [ $resilvering -eq 1 ]; then
+	echo "NOTE: Resilvering detected + completed and srub completed"
+else
+	echo "NOTE: Resilvering not detected (too fast to detect) and scrub completed"
+fi
 exit 0

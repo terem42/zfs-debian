@@ -1,0 +1,20 @@
+Description: do not attempt to build the modules on PREEMPT_RT kernels
+Author: Andreas Beckmann <anbe@debian.org>
+Bug-Debian: https://bugs.debian.org/981212
+Bug: https://github.com/openzfs/zfs/issues/11097
+
+--- a/scripts/dkms.mkconf
++++ b/scripts/dkms.mkconf
+@@ -25,6 +25,12 @@ PACKAGE_NAME="${pkgname}"
+ PACKAGE_VERSION="${pkgver}"
+ PACKAGE_CONFIG="${pkgcfg}"
+ NO_WEAK_MODULES="yes"
++if [ -f \$kernel_source_dir/.config ]; then
++    . \$kernel_source_dir/.config
++    if [ "\$CONFIG_PREEMPT_RT" = "y" ]; then
++        BUILD_EXCLUSIVE_KERNEL="NOT ON PREEMPT_RT"
++    fi
++fi
+ PRE_BUILD="configure
+   --prefix=/usr
+   --with-config=kernel

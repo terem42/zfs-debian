@@ -1,70 +1,415 @@
-zfs-linux (2.1.4-2terem$github_run_number) zfs-debian-experimental; urgency=medium
-  * upstream commit $upstream_sha
- -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 13 Apr 2022 18:51:00 -0100
+zfs-linux (2.1.4-2) UNRELEASED; urgency=medium
 
-zfs-linux (0.8.6-1terem$github_run_number) zfs-debian-experimental; urgency=medium
-  * added patches for 11039 and 10391 pull requests from openzfs
-  * updated version to 0.8.5
-  * added terem 004 patch 
-    based on 10278 github.com/openzfs/zfs pull request
-  * updated terem 0003 patch
- -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 04 Nov 2020 08:36:00 -0100
+  * Switch to dh-sequence-dkms.
+  * Do not use deprecated dkms feature REMAKE_INITRD.
+  * Switch to autopkgtest-pkg-dkms.
+  * Do not attempt to build the modules on PREEMPT_RT kernels.  (cf. #981212)
 
-zfs-linux (0.8.4-1terem3) zfs-debian-experimental; urgency=medium
+ -- Andreas Beckmann <anbe@debian.org>  Fri, 27 May 2022 22:27:37 +0200
 
-  * updated master commit ref a7929f3
-  * updated terem 0003 patch
- -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 01 Apr 2020 22:23:00 -0100
+zfs-linux (2.1.4-1) unstable; urgency=medium
 
-zfs-linux (0.8.3-1terem5) bionic; urgency=medium
+  * New upstream version 2.1.4 (Closes: #1007186)
+  * Sync debian/patches/ubuntu directory from 2.1.2-1ubuntu3.
+    - Ubuntu patches are not applied on Debian.
+    + Reorder patches in patches/series to keep ubuntu patches last.
+    + Autopkgtest improvements for kernel-smoke-test-scrub.
+    + Thanks to Dimitri John Ledkov <dimitri.ledkov@canonical.com>.
+    + Thanks to Dave Jones <dave.jones@canonical.com>.
+    + Sync debian/control.ubuntu from downstream debian/control.
+  * Rebase existing patchset to new upstream release.
+  * Install upstream's new systemd scrub service (weekly and monthly).
+  * Build with libcurl for new keylocation=https:// (Closes: #988521)
+  * Refresh symbols control file.
+  * Update lintian overrides.
 
-  * merge zfs debian repo 0.8.2 to zfs master
+ -- Mo Zhou <lumin@debian.org>  Sat, 26 Mar 2022 15:44:54 -0400
 
- -- Andrey (apt.terem.fr) <job@terem.fr>  Wed, 10 Jan 2020 09:42:52 -0100
+zfs-linux (2.1.2-1) unstable; urgency=medium
 
-zfs-linux (0.8.2-3ubuntu4) focal; urgency=medium
+  * New upstream version 2.1.2
+  * Update symbols
 
-  * debian/patches/initramfs-setup-keymapping-and-video-for-
-    prompts.patch: initramfs: setup keymapping and video for prompts. 
-    Thanks to Richard Laager <rlaager@wiktel.com>.  Closes LP: #1856408.
+ -- Aron Xu <aron@debian.org>  Thu, 16 Dec 2021 23:12:47 +0800
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 16 Dec 2019 09:42:52 -0800
+zfs-linux (2.1.1-3) unstable; urgency=medium
 
-zfs-linux (0.8.2-3ubuntu3) focal; urgency=medium
+  * Fix pkgcfg path in dkms.mkconf
+  * Add patch to avoid zfs-volume-wait timeout with locked encrypted
+    zvols (Closes: #997980, LP: #1888405)
+  * Update README.{Source,Debian} to reflect current situation (Closes: #986301)
 
+ -- Aron Xu <aron@debian.org>  Wed, 08 Dec 2021 16:55:48 +0800
+
+zfs-linux (2.1.1-2) experimental; urgency=medium
+
+  * d/lib{uutil3,zfs4,zpool5}linux.symbols: updated
+
+ -- Aron Xu <aron@debian.org>  Sat, 27 Nov 2021 02:37:32 +0800
+
+zfs-linux (2.1.1-1) experimental; urgency=medium
+
+  * New upstream version 2.1.1 (Closes: #991896)
+  * d/patches: update for 2.1.x series
+  * d/control: require abigail-tools >= 1.8
+  * d/rules: allow abigail to fail
+  * zfsutils-linux: move {zfs,zpool}{concepts,props} from man8 to man7
+  * zfsutils-linux: install new files
+  * libzpool: update soversion from 4 to 5, update symbols
+  * Add PPC get_user workaround from Ubuntu
+  * d/patches: clean up patches and make lintian happy
+  * d/control: update short desc for libzfs4linux and libzfsbootenv1linux
+  * d/patches: update Forwarded header
+  * d/copyright: update copyright information
+  * d/control: remove transition dummpy packages spl and spl-dkms
+  * d/zfs-test.lintian-overrides: update file path
+  * Close debconf translation bugs for those already merged
+    Closes: #984731, #985130, #985360, #986337, #987342, #993892
+
+ -- Aron Xu <aron@debian.org>  Wed, 24 Nov 2021 21:50:39 +0800
+
+zfs-linux (2.0.6-1) unstable; urgency=medium
+
+  [ Ben K ]
+  * Fix grammar (or maybe it was a typo) of "das/dass" in debian/po/de.po.
+
+  [ Aron Xu ]
+  * d/README.Debian: update the scrub time
+  * New upstream version 2.0.6
+  * Remove applied patch, refresh remaining ones
+  * Update symbols for libzpool4linux
+
+ -- Aron Xu <aron@debian.org>  Thu, 23 Sep 2021 14:43:12 +0800
+
+zfs-linux (2.0.3-9) unstable; urgency=medium
+
+  * Cherry-pick "Remove iov_iter_advance() for iter_write" (Closes: #989373)
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 01 Jul 2021 13:44:20 +0800
+
+zfs-linux (2.0.3-8) unstable; urgency=medium
+
+  * Fix a typo in autopkgtest-dependency header package name.
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 15 Apr 2021 09:44:39 +0800
+
+zfs-linux (2.0.3-7) unstable; urgency=medium
+
+  * Use Architecture: field for autopkgtest.
+  * Add missing test dependency linux-headers-armmp for armhf.
+
+ -- Mo Zhou <lumin@debian.org>  Wed, 14 Apr 2021 12:24:03 +0800
+
+zfs-linux (2.0.3-6) unstable; urgency=medium
+
+  [ наб ]
+  * Fix broken purge detection in zfs-zed.postrm. (Closes: #986374)
+  * /u/l/z-l/{scrub, trim}: enhancements including proper handling for pools
+    with spaces in name. (Closes: #986380)
+
+  [ Mo Zhou ]
+  * Really install README.Debian into every binary package.
+
+ -- Mo Zhou <lumin@debian.org>  Mon, 05 Apr 2021 10:35:25 +0800
+
+zfs-linux (2.0.3-5) unstable; urgency=medium
+
+  [ наб ]
+  * Fix d/rules that README.Debian is installed for libnvpair3linux only.
+    (Closes: #986299)
+
+ -- Mo Zhou <lumin@debian.org>  Sat, 03 Apr 2021 17:55:51 +0800
+
+zfs-linux (2.0.3-4) unstable; urgency=medium
+
+  * Revise the auto-{scrub,trim} scripts and describe usage in README.Debian.
+    (See #986185 and thanks for наб)
+
+ -- Mo Zhou <lumin@debian.org>  Fri, 02 Apr 2021 21:35:32 +0800
+
+zfs-linux (2.0.3-3) unstable; urgency=medium
+
+  * Use zfs property for periodical-{scrub,trim} cron jobs.
+    This fixes the exclusive "nvme-only" behavior of the auto-trim script.
+    P.S. In this way, we will not have to store configs in /etc/default/zfs,
+    or use debconf database as a registry. Plus, this also allows us to
+    configure the cron job behavior per zpool.
+    (Closes: #986185)
+  * Fix i386 autopkgtest failure due to missing dependency.
+
+ -- Mo Zhou <lumin@debian.org>  Fri, 02 Apr 2021 14:34:15 +0800
+
+zfs-linux (2.0.3-2) unstable; urgency=medium
+
+  [ Aron Xu ]
+  * cherry pick of upstream post-2.0.3 fixes
+  * debconf: update the term ZFS to OpenZFS
+  * debconf: run debconf-updatepo
+
+  [ Antonio Russo ]
+  * Adjust zed.d symlink-preservation (Closes: #983401)
+  * Remove /etc/zfs/zed.d on purge
+
+  [ Mo Zhou ]
+  * Only automatically TRIM NVMe SSD pools. (Closes: #983086, #982505)
+
+  [ наб ]
+  * Fix a misleading comment in the scrub cronjob script. (Closes: #985349)
+
+ -- Aron Xu <aron@debian.org>  Tue, 30 Mar 2021 14:47:05 +0800
+
+zfs-linux (2.0.3-1) unstable; urgency=medium
+
+  * New upstream version 2.0.3
+  * Remove upstreamed patches.
+  * Synchronize with ubuntu delta 2.0.1-1ubuntu2.
+
+ -- Mo Zhou <lumin@debian.org>  Fri, 12 Feb 2021 16:30:01 +0800
+
+zfs-linux (2.0.2-1) unstable; urgency=medium
+
+  [ Mo Zhou ]
+  * New upstream version 2.0.2
+
+  [ Antonio Russo ]
+  * Remove upstreamed patches and refresh remaining ones.
+  * Update debian/copyright
+  * Add ZTS to debian/tests
+  * Bump Standards-Version to 4.5.1 (no changes)
+  * Reoganize debian/patches
+  * Cherry pick patches from 2.0.3 staging
+
+ -- Mo Zhou <lumin@debian.org>  Sat, 06 Feb 2021 13:30:55 +0800
+
+zfs-linux (2.0.1-3) unstable; urgency=medium
+
+  [ Antonio Russo ]
+  * Install zgenhostid in /sbin (Closes: #980464)
+  * Three ZTS patches
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 21 Jan 2021 17:09:02 +0800
+
+zfs-linux (2.0.1-2) unstable; urgency=medium
+
+  * Patch: move manpage arcstat(1) to arcstat(8). (Closes: #980105)
+  * Cherry-pick patches from upstream zfs-2.0.2-staging branch.
+     + 0001-zpool-Dryrun-fails-to-list-some-devices.patch
+
+ -- Mo Zhou <lumin@debian.org>  Fri, 15 Jan 2021 22:27:09 +0800
+
+zfs-linux (2.0.1-1) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Mo Zhou <lumin@debian.org>  Sun, 10 Jan 2021 22:24:18 +0800
+
+zfs-linux (2.0.1-1~exp1) experimental; urgency=medium
+
+  [ Mo Zhou ]
+  * New upstream version 2.0.1 (Closes: #977656)
+  * Elaborate the functionality of ZED in long description. (Closes: #979414)
+  * Fixup encoding in one of the patch headers.
+  * Update lintian overrides.
+
+  [ Antonio Russo ]
+  * Update overrides for 2.0.1
+  * New symbols shipped in 2.0.1
+
+ -- Mo Zhou <lumin@debian.org>  Sat, 09 Jan 2021 13:24:36 +0800
+
+zfs-linux (2.0.0-1~exp1) experimental; urgency=medium
+
+  [ Mo Zhou ]
+  * New upstream version 2.0.0
+  * d/rules: Only check ABI for the amd64 architecture.
+  * Refresh symbols file again based on arm64.
+
+  [ Antonio Russo ]
+  * Use new --with-pkgconfigdir tunable
+  * ship arcstat(1) manual page
+  * Manual pages were split into subpages
+  * Add new zstream utility
+  * Include new zfs_ids_to_path tool
+  * Include new pam_zfs_key mechanism
+  * Refresh patches
+  * Remove upstreamed patches
+  * Do not regenerate zfs_gitrev.sh during dkms build
+  * Bump library versions to match upstream
+  * Update symbols
+  * refresh lintian-overrides for 2.0.0
+  * package zfsbootenv library
+  * Remove upstreamed risc patches
+  * override zfs-tests lintian warnings
+  * Validate ABI at build time
+  * Reflect libssl requirement of libzfs
+  * Exclude FreeBSD sources in Linux DKMS package
+  * Remove duplicate lintian override
+  * Update debian/copyright
+
+  [ Aron Xu ]
+  * Remove out dated lintian override: package-uses-old-debhelper-compat-version
+
+ -- Aron Xu <aron@debian.org>  Fri, 25 Dec 2020 01:33:41 +0800
+
+zfs-linux (0.8.6-1) unstable; urgency=medium
+
+  * New upstream version 0.8.6
+  * d/patches/update-meta.patch: disabled, not needed this upload
+
+ -- Aron Xu <aron@debian.org>  Thu, 17 Dec 2020 17:18:12 +0800
+
+zfs-linux (0.8.5-3) unstable; urgency=medium
+
+  [ Antonio Russo ]
+  * symbols: Build-Depends-Package on libzfslinux-dev
+
+  [ Aron Xu ]
+  * Petter to step aside, thanks for all the work, happy hacking!
+
+  [ Witold Baryluk ]
+  * Don't stop on first error in scrub and trim script (Closes: #976090)
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 10 Dec 2020 14:28:50 +0800
+
+zfs-linux (0.8.5-2) unstable; urgency=medium
+
+  [ Antonio Russo ]
+  * zfs-dkms: restrict to the same source version (Closes: #972327)
+  * lintian: ignore binary data in lua script.
+
+  [ Mo Zhou ]
+  * Cherry-pick x32 support from master branch. (Closes: #968256)
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 29 Oct 2020 14:05:31 +0800
+
+zfs-linux (0.8.5-1) unstable; urgency=medium
+
+  [ Aron Xu ]
+  * Schedule pool TRIM on every first Sunday of month
+
+  [ Mo Zhou ]
+  * New upstream version 0.8.5 (Oct 6 2020 UTC) (Closes: #966565, #968550)
+  * Remove merged patches and refresh the remaining ones.
+  * Update installation path for libzfslinux-dev pkgconfig files.
+  * Add d/clean to clean up useless files and those generated from templates.
+
+  [ Antonio Russo ]
+  * Apply wrap-and-sort
+  * Update version-dependent paths in lintian overrides
+  * Update kernel compatibility
+  * Install in multiarch-compatible directories.
+
+ -- Mo Zhou <lumin@debian.org>  Fri, 16 Oct 2020 18:14:05 +0800
+
+zfs-linux (0.8.4-2) unstable; urgency=medium
+
+  * Sync with Ubuntu delta 0.8.4-1ubuntu10.
+    + Sync 4000-zsys-support.patch from 0.8.4-1ubuntu10.
+    + Backport upstream patches fixing a dependency loop when encryption
+      via Luks (like swap) is enabled. (LP: #1875577)
+      Patch: git_fix_dependency_loop_encryption{1,2}.patch
+    + Add Linux 5.8 compat fix (4520-Linux-5.8-compat-__vmalloc.patch)
+    + Remove 4500-fix-generator-invalid-cache.patch following Ubuntu
+    + Make keystore encryption or direct ZFS encryption closer, and make
+      the service chain more robust. (4000-mount-encrypted-dataset-fix.patch)
+    + Add risc-v 64 bit support, requires implementing risc-v setjmp/longjmp
+      and adding some relevant #defines (4521-enable-risc-v-isa.patch)
+    + 4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
+      zfs-volume-wait.service systemd unit does not start if the encrypted
+      zvol is locked. The /sbin/zvol_wait should not wait for links when the
+      volume has property keystatus=unavailable. Add a check for this.
+    + Thanks to Ubuntu developers. Let's hope for a smaller debdiff.
+  * Fix FTBFS with sphinx (Closes: #962276).
+  * Rebase git_fix_dependency_loop_encryption1.patch and refresh the rest.
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 23 Jul 2020 22:26:35 +0800
+
+zfs-linux (0.8.4-1) unstable; urgency=medium
+
+  [ Antonio Russo ]
+  * Let zfs-test use installed python3
+  * Add dependencies for zfs-test
+  * Refresh patches for 0.8.4
+  * Refresh debian/not-installed
+
+  [ Mo Zhou ]
+  * New upstream version 0.8.4
+  * Bump Standards-Version to 4.5.0 (no change).
+  * Refresh symbols control file.
+  * Remove the unnecessary --with systemd dh option.
+
+ -- Mo Zhou <lumin@debian.org>  Wed, 13 May 2020 14:46:54 +0800
+
+zfs-linux (0.8.3-2) unstable; urgency=medium
+
+  [ Richard Laager ]
+  * cron: Do not error if already scrubbing
+
+  [ Antonio Russo ]
+  * [dracut] include zfs-load-module.service
+  * Preserve /etc/zfs/zed.d configuration on upgrade (Closes: #952822)
+
+  [ Mo Zhou ]
+  * Reword ZFS Description, thanks to Richard Laager (Closes: #949911)
+  * Import patches from Ubuntu delta (0.8.3-1ubuntu3).
+    + Apply 2100-zfs-load-module.patch and add this new service.
+    + The rest Ubuntu specific patches are left in the comment.
+  * Refresh upstream Git repo URL in d/copyright.
+  * Sync patchset with Ubuntu diff (= 0.8.3-1ubuntu8).
+    + Cherry-pick patches for Linux 5.5, 5.6 support.
+    + Rest patches are unapplied (can reduce Debian/Ubuntu debdiff).
+    + Many thanks to Ubuntu developers.
+  * Import the Ubuntu version of tests/control as tests/control.ubuntu
+  * Autopkgtest: Reconfigure before testing binary kmod pkg builds.
+
+ -- Mo Zhou <lumin@debian.org>  Thu, 19 Mar 2020 10:58:53 +0800
+
+zfs-linux (0.8.3-1) unstable; urgency=medium
+
+  * New upstream version 0.8.3
+  * Remove the seven upstreamed/cherry-picked patches.
+  * Mark zfs-import.service as not-installed.
+  * Refresh symbol control files.
+  * Add NEWS entry about SIMD and parallel KABI checks.
+
+ -- Mo Zhou <lumin@debian.org>  Sat, 25 Jan 2020 15:58:35 +0800
+
+zfs-linux (0.8.2-5) unstable; urgency=medium
+
+  * Remove old+unused SIMD patches; Move the openrc patch to "unapplied" dir.
+  * Correct zpool scrubing oneliner in crontab. (Closes: #946748)
+    Thanks to Dirk Heinrichs. Reviewed by Richard Laager.
+  * Cherry-pick: fix-automount-for-root-filesystems.patch (Closes: #945585)
+  * Add patch headers to patches without them.
+  * Override a series of lintian Info.
+  * Bump Standards-Version to 4.4.1 (no change).
+  * Update my mail address in control and copyright.
+
+ -- Mo Zhou <lumin@debian.org>  Tue, 21 Jan 2020 20:39:26 +0800
+
+zfs-linux (0.8.2-4) unstable; urgency=medium
+
+  [ Colin Ian King ]
+  * etc-defaults-zfs-notice.patch: fix "unexpected end of diff".
+
+  [ Steve Langasek ]
+  * initramfs: setup keymapping and video for prompts. (LP: #1856408)
+
+  [ Heitor Alves de Siqueira ]
   * Fix livelock between ZFS evict and writeback threads (LP: #1856084)
-    - Upstream ZFS fix 41e1aa2a06f8 ("Break out of zfs_zget early if unlinked
-      znode")
-    - Upstream ZFS fix 0c46813805f4 ("Check for unlinked znodes after
-      igrab()")
+    - Upstream 41e1aa2a06f8 "Break out of zfs_zget early if unlinked znode"
+    - Upstream 0c46813805f4 "Check for unlinked znodes after igrab()"
+    (Closes: #946610)
 
- -- Heitor Alves de Siqueira <halves@canonical.com>  Fri, 13 Dec 2019 11:27:39 -0300
+  [ Mo Zhou ]
+  * Autopkgtest: Remove the vendor tests from binary-debs* tests
+    and the dkms-zfs-test.
+  * Merge 2 upstreamed patches from ubuntu diff (0.8.2-3ubuntu1)
+    + 4501-fix-var-lib-race.patch
+    + 4600-diff_cb-does-not-handle-large-dnodes.patch
+  * Don't restart zfs-{import*,mount} on/after upgrade. (Closes: #923377)
 
-zfs-linux (0.8.2-3ubuntu2) focal; urgency=medium
-
-  * etc-defaults-zfs-notice.patch: fix a dpkg-source warning "unexpected 
-    end of diff" by refreshing patch
-
- -- Colin Ian King <colin.king@canonical.com>  Wed, 27 Nov 2019 15:37:23 +0000
-
-zfs-linux (0.8.2-3ubuntu1) focal; urgency=medium
-
-  * debian/tests/dkms-zfs-test: remove Debian dpkg-vendor check
-  * debian/tests/binary-debs-modules: remove Debian dpkg-vendor check
-  * debian/tests/binary-debs-modules-udeb: remove Debian dpkg-vendor check
-  * debian/tests/control: remove extraneous dkms testing as Ubuntu has
-    the drivers built in the kernel
-  * debian/control.udeb.in: remove zfs-modules from zfsutils-udeb Depends
-  * debian/control:
-    - zfs-initramfs: architectures: amd64 arm64 ppc64el s390
-    - zfs-initramfs: Depends: remove zfs-modules | zfs-dkms
-    - zfs-dracut: Depends: remove zfs-modules | zfs-dkms
-    - zfs-dracut: architectures: amd64 arm64 ppc64el s390
-    - zfsutils-linux: Recommends: remove zfs-modules | zfs-dkms
-    - zfs-zed: Depends: remove zfs-modules | zfs-dkms
-    - zfs-test: Depends: remove zfs-modules | zfs-dkms
-
- -- Colin Ian King <colin.king@canonical.com>  Tue, 12 Nov 2019 10:00:00 +0000
+ -- Mo Zhou <cdluminate@gmail.com>  Thu, 19 Dec 2019 21:25:28 +0800
 
 zfs-linux (0.8.2-3) unstable; urgency=medium
 
@@ -106,7 +451,7 @@ zfs-linux (0.8.2-1) unstable; urgency=medium
      - 2000-increase-default-zcmd-allocation-to-256K.patch
      - git_fix_mount_race.patch
   * Disable linux-5.0-simd-compat.patch due to its incorrect assumption that
-    may lead to system instability when SIMD is enabled. (Closes: #940932) 
+    may lead to system instability when SIMD is enabled. (Closes: #940932)
     See also https://github.com/zfsonlinux/zfs/issues/9346
   * Install new service that waits on zvol links to be created (gh#8975).
   * Remove unused control variable ${python3:Depends} for zfsutils-linux.

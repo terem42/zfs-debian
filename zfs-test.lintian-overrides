@@ -1,3 +1,13 @@
 arch-dependent-file-in-usr-share
-script-not-executable usr/share/zfs/common.sh
 command-in-sbin-has-manpage-in-incorrect-section
+arch-dep-package-has-big-usr-share
+manpage-without-executable
+national-encoding usr/share/zfs/zfs-tests/tests/functional/channel_program/lua_core/tst.lib_table.lua
+executable-not-elf-or-script usr/share/zfs/zfs-tests/tests/functional/cli_root/zfs_jail/jail.conf
+package-contains-documentation-outside-usr-share-doc usr/share/zfs/zfs-tests/*
+script-not-executable [usr/share/zfs/common.sh]
+script-not-executable [usr/share/zfs/zfs-tests/include/default.cfg]
+script-not-executable [usr/share/zfs/zfs-tests/tests/functional/cli_root/zfs_wait/zfs_wait.kshlib]
+script-not-executable [usr/share/zfs/zfs-tests/tests/functional/cli_root/zpool_wait/zpool_wait.kshlib]
+script-not-executable [usr/share/zfs/zfs-tests/tests/functional/l2arc/l2arc.cfg]
+script-not-executable [usr/share/zfs/zfs-tests/tests/functional/redacted_send/redacted.kshlib]

@@ -1,0 +1,36 @@
+From 509f8ae5747a356b0eaeef998ce41ac79033c148 Mon Sep 17 00:00:00 2001
+From: Richard Laager <rlaager@wiktel.com>
+Date: Sat, 1 Aug 2020 12:32:10 -0500
+Subject: [PATCH] zvol_wait: Ignore locked zvols
+
+Thanks: James Dingwall <james-launchpad@dingwall.me.uk>
+Signed-off-by: Richard Laager <rlaager@wiktel.com>
+---
+ cmd/zvol_wait/zvol_wait | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+Index: zfs-linux/cmd/zvol_wait/zvol_wait
+===================================================================
+--- zfs-linux.orig/cmd/zvol_wait/zvol_wait
++++ zfs-linux/cmd/zvol_wait/zvol_wait
+@@ -36,15 +36,17 @@ filter_out_locked_zvols() {
+ list_zvols() {
+ 	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
+ 	zfs list -t volume -H -o \
+-	    name,volmode,receive_resume_token,redact_snaps |
+-	    while IFS="	" read -r name volmode token redacted; do # IFS=\t here!
++	    name,volmode,receive_resume_token,redact_snaps,keystatus |
++	    while IFS="	" read -r name volmode token redacted keystatus; do # IFS=\t here!
+ 
+ 		# /dev links are not created for zvols with volmode = "none"
+-		# or for redacted zvols.
++                # redacted zvols, or encrypted zvols for which the key has not
++                # been loaded.
+ 		[ "$volmode" = "none" ] && continue
+ 		[ "$volmode" = "default" ] && [ "$default_volmode" = "3" ] &&
+ 		    continue
+ 		[ "$redacted" = "-" ] || continue
++		[ "$keystatus" = "unavailable" ] && continue
+ 
+ 		# We also ignore partially received zvols if it is
+ 		# not an incremental receive, as those won't even have a block

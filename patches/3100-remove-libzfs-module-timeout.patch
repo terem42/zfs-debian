@@ -6,9 +6,11 @@ container and set the timeout to zero in this specific case.
 
 ---
 
---- a/lib/libzfs/libzfs_util.c
-+++ b/lib/libzfs/libzfs_util.c
-@@ -921,6 +921,15 @@
+Index: zfs-linux/lib/libzfs/os/linux/libzfs_util_os.c
+===================================================================
+--- zfs-linux.orig/lib/libzfs/os/linux/libzfs_util_os.c
++++ zfs-linux/lib/libzfs/os/linux/libzfs_util_os.c
+@@ -107,6 +107,15 @@ libzfs_load_module_impl(const char *modu
  	int load = 0, fd;
  	hrtime_t start;
  

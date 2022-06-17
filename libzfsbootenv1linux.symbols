@@ -1,0 +1,10 @@
+libzfsbootenv.so.1 libzfsbootenv1linux #MINVER#
+* Build-Depends-Package: libzfslinux-dev
+ lzbe_add_pair@Base 2.0
+ lzbe_bootenv_print@Base 2.0
+ lzbe_get_boot_device@Base 2.0
+ lzbe_nvlist_free@Base 2.0
+ lzbe_nvlist_get@Base 2.0
+ lzbe_nvlist_set@Base 2.0
+ lzbe_remove_pair@Base 2.0
+ lzbe_set_boot_device@Base 2.0

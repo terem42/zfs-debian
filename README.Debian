@@ -1,0 +1,68 @@
+zfs-linux for Debian
+====================
+
+1. Feature flags are enabled by default.
+----------------------------------------
+
+This means that ZoL will now create pools in a way that is
+incompatible with Solaris. If you need Solaris compatibility,
+then create pools like this:
+
+  # zpool create -o version=28 tank ...
+
+ZoL remains compatible with all other ZFS implementations derived
+from Illumos.
+
+ -- Aron Xu <aron@debian.org>  Sat, 3 Aug 2013 03:23:11 +0800
+
+2. Use zfs-initramfs with caution.
+----------------------------------
+
+Debian Installer does not support root installation because zfs udeb
+modules are not built in-tree with the linux kernel, and zfs-initramfs
+is included here for people interested to setup ZFS as rootfs manually.
+Since faulty operation on filesystem can lead to major loss of data,
+please use zfs-initramfs with caution.
+
+ -- Aron Xu <aron@debian.org>  Sat, 3 Aug 2013 03:23:11 +0800
+
+3. Per-zpool config for the periodic-{scrub,trim} cron jobs is supported.
+-------------------------------------------------------------------------
+
+ Starting with 2.0.3-3, the auto-scrub and auto-trim cron jobs will use the
+ "org.debian:periodic-{scrub,trim}" user properties on the pool's root dataset
+ to determine if they should do anything; accepted values are:
+
+	* "auto"    ‒ same as unset, use default checks
+	* "enable"  ‒ always scrub/trim automatically
+	* "disable" ‒ never scrub/trim automatically
+
+ [ Periodic Scrubbing ]
+
+ Scrubbing storage pool data is a routine maintenance operation that check all
+ data against known checksums, and fix early problems like bit riots. This
+ operation is scheduled with low priority in the background, and usually does
+ not have big impact on performance when the pool is not heavily utilized.
+
+ If you would like to scrub all pools periodically, no operation is required
+ as periodic scrub is already the default behavior. Or if you want to
+ make it explicit for a zpool named "tank":
+
+  # zfs set org.debian:periodic-scrub=auto tank
+
+ By default scrub jobs are scheduled on every second Sunday of month.
+
+ [ Periodic Trimming ]
+
+ Some SSD devices require proper scheduling of TRIM commands to maintain best
+ performance. Currently the auto-trim will only trim if the zpool consists of
+ /only/ NVMe drives, since some SATA 2 and SATA 3.0 SSDs will hang or crash
+ during large TRIMs (See #983086). If your zpools with SATA SSDs had no
+ problems trimming before, you will need to run the following command to
+ restore the previous behaviour (always trim a pool):
+
+  # zfs set org.debian:periodic-trim=enable sata-pool
+
+ TRIM jobs are scheduled on every first Sunday of month by default.
+
+ -- Mo Zhou <lumin@debian.org> Fri, 2 Apr 2021 12:23:00 +0000

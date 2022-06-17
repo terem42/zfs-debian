@@ -1,0 +1,59 @@
+Description: Make these scripts work for Debian+OpenRC setup.
+Author: Mo Zhou <lumin@debian.org>
+Last-update: 20181026
+Forward: https://github.com/zfsonlinux/zfs/issues/8063
+
+Index: zfs-linux/etc/init.d/zfs-import.in
+===================================================================
+--- zfs-linux.orig/etc/init.d/zfs-import.in
++++ zfs-linux/etc/init.d/zfs-import.in
+@@ -309,8 +309,7 @@ do_start()
+ 
+ # ----------------------------------------------------
+ 
+-if [ ! -e /sbin/openrc-run ]
+-then
++if ! (echo @SHELL@ | grep openrc 1>/dev/null 2>/dev/null); then
+ 	case "$1" in
+ 		start)
+ 			do_start
+Index: zfs-linux/etc/init.d/zfs-mount.in
+===================================================================
+--- zfs-linux.orig/etc/init.d/zfs-mount.in
++++ zfs-linux/etc/init.d/zfs-mount.in
+@@ -199,8 +199,7 @@ do_stop()
+ 
+ # ----------------------------------------------------
+ 
+-if [ ! -e /sbin/openrc-run ]
+-then
++if ! (echo @SHELL@ | grep openrc 1>/dev/null 2>/dev/null); then
+ 	case "$1" in
+ 		start)
+ 			do_start
+Index: zfs-linux/etc/init.d/zfs-share.in
+===================================================================
+--- zfs-linux.orig/etc/init.d/zfs-share.in
++++ zfs-linux/etc/init.d/zfs-share.in
+@@ -58,7 +58,7 @@ do_stop()
+ 
+ # ----------------------------------------------------
+ 
+-if [ ! -e /sbin/openrc-run ]; then
++if ! (echo @SHELL@ | grep openrc 1>/dev/null 2>/dev/null); then
+ 	case "$1" in
+ 		start)
+ 			do_start
+Index: zfs-linux/etc/init.d/zfs-zed.in
+===================================================================
+--- zfs-linux.orig/etc/init.d/zfs-zed.in
++++ zfs-linux/etc/init.d/zfs-zed.in
+@@ -98,7 +98,7 @@ do_reload()
+ 
+ # ----------------------------------------------------
+ 
+-if [ ! -e /sbin/openrc-run ]; then
++if ! (echo @SHELL@ | grep openrc 1>/dev/null 2>/dev/null); then
+ 	case "$1" in
+ 		start)
+ 			do_start

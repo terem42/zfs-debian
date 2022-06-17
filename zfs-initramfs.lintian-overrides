@@ -1,0 +1,1 @@
+executable-not-elf-or-script usr/share/initramfs-tools/scripts/zfs

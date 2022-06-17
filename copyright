@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Native ZFS for Linux
+Upstream-Name: OpenZFS on Linux and FreeBSD
 Upstream-Contact: Brian Behlendorf <behlendorf1@llnl.gov>
-Source: https://github.com/zfsonlinux/zfs/
+Source: https://github.com/openzfs/zfs
 Disclaimer:
  This work was produced at the Lawrence Livermore National Laboratory
  (LLNL) under Contract No. DE-AC52-07NA27344 (Contract 44) between
@@ -132,9 +132,9 @@ Copyright:
  2017, Intel Corporation.
 License: CDDL-1.0
 
-Files: cmd/zstreamdump/*
+Files: cmd/zstream/*
 Copyright:
-  2013, Delphix.
+  2013, 2015 Delphix.
   2012, Martin Matuska <martin@matuska.org>
   2010, Sun Microsystems, Inc.
 License: CDDL-1.0
@@ -183,7 +183,11 @@ Files: contrib/bash_completion.d/*
 Copyright: 2010, 2013, Aneurin Price <aneurin.price@gmail.com>
 License: Expat
 
-FIles: contrib/pyzfs/*
+Files: contrib/pam_zfs_key/*
+Copyright: Copyright (c) 2020, Felix Dörre. All rights reserved.
+License: BSD-3-clause
+
+Files: contrib/pyzfs/*
 Copyright: 2015 ClusterHQ
 License: Apache-2.0
 
@@ -195,7 +199,8 @@ Copyright:
  2013, Turbo Fredriksson <turbo@bayour.com>
  2012-2013, Richard Laager <rlaager@wiktel.com>
  2011-2013, Darik Horn <dajhorn@vanadac.com>
- 2018, Mo Zhou <lumin@debian.org>
+ 2018-2019, Mo Zhou <cdluminate@gmail.com>
+ 2018-2020, Mo Zhou <lumin@debian.org>
 License: GPL-2+
 
 Files: debian/po/*
@@ -393,12 +398,7 @@ Copyright: 2009, Oracle and/or its affiliates.
   2009, Michael Gebetsroither <michael.geb@gmx.at>
 License: CDDL-1.0
 
-Files: man/man5/zfs-events.5
-       man/man5/zfs-module-parameters.5
-Copyright: 2013, Turbo Fredriksson <turbo@bayour.com>
-License: CDDL-1.0
-
-Files: man/man5/zpool-features.5
+Files: man/man7/zpool-features.7
 Copyright:
   2013, Delphix
   2013, Saso Kiselkov
@@ -429,6 +429,10 @@ Files: module/*
 Copyright: 2011-2014, Delphix.
   2007, 2009, 2010, Sun Microsystems, Inc.
 License: CDDL-1.0
+
+Files: module/lua/*
+Copyright: 1994-2015 Lua.org, PUC-Rio.
+License: Expat
 
 Files: module/nvpair/*
 Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
@@ -473,13 +477,13 @@ Copyright: 2013, Saso Kiselkov.
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
 
-Files: module/zcommon/zfs_uio.c
+Files: module/os/linux/zfs/zfs_uio.c
 Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
   1983-1989, AT&T
   1982, 1986, 1988, The Regents of the University of California
 License: CDDL-1.0
 
-Files: module/spl/*
+Files: module/os/linux/spl/*
 Copyright:
   2008-2010 Sun Microsystems, Inc.
   2007-2010 Lawrence Livermore National Security, LLC.
@@ -687,13 +691,14 @@ Copyright: 2011, 2014, Nexenta Systems, Inc.
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
 
-Files: module/zfs/vdev_disk.c
+Files: module/os/linux/zfs/vdev_disk.c
 Copyright: 2012, 2014, Delphix.
   2008-2010, Lawrence Livermore National Security, LLC
 License: CDDL-1.0
 
-Files: module/zfs/zfs_ctldir.c
-Copyright: 2013, Delphix.
+Files: module/os/freebsd/zfs/zfs_ctldir.c
+  module/os/linux/zfs/zfs_ctldir.c
+Copyright: 2013, 2015 Delphix.
   2011, Lawrence Livermore National Security, LLC
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
@@ -716,7 +721,8 @@ Copyright: 2013, Delphix.
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
 
-Files: module/zfs/zfs_vfsops.c
+Files: module/os/freebsd/zfs/zfs_vfsops.c
+  module/os/linux/zfs/zfs_vfsops.c
   module/zfs/zil.c
 Copyright: 2011-2014, Delphix.
   2010, Robert Milkowski
@@ -731,8 +737,9 @@ Copyright: 2015, Chunwei Chen.
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
 
-Files: module/zfs/zfs_znode.c
-Copyright: 2013, Delphix.
+Files: module/os/freebsd/zfs/zfs_znode.c
+  module/os/linux/zfs/zfs_znode.c
+Copyright: 2013, 2015 Delphix.
   2007, Jeremy Teo
   2005, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
@@ -743,23 +750,38 @@ Copyright: 2013, Saso Kiselkov.
   2009, Sun Microsystems, Inc.
 License: CDDL-1.0
 
-Files: module/zfs/zpl_ctldir.c
-  module/zfs/zpl_super.c
-  module/zfs/zpl_xattr.c
+Files: module/os/linux/zfs/zpl_ctldir.c
+  module/os/linux/zfs/zpl_super.c
+  module/os/linux/zfs/zpl_xattr.c
   module/zfs/zvol.c
 Copyright: 2008-2011, Lawrence Livermore National Security, LLC
 License: CDDL-1.0
 
-Files: module/zfs/zpl_export.c
+Files: module/os/linux/zfs/zpl_export.c
 Copyright: 2012, Cyril Plisko.
   2011, Gunnar Beutner
 License: CDDL-1.0
 
-Files: module/zfs/zpl_file.c
-  module/zfs/zpl_inode.c
+Files: module/os/linux/zfs/zpl_file.c
+  module/os/linux/zfs/zpl_inode.c
 Copyright: 2015, Chunwei Chen.
   2011, Lawrence Livermore National Security, LLC
 License: CDDL-1.0
+
+Files: module/zstd/zstd-in.c
+Copyright: Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+  Copyright (c) 2019-2020, Michael Niewöhner
+License: BSD-3-clause
+
+Files: module/zstd/zfs_zstd.c
+Copyright: Copyright (c) 2016-2018, Klara Inc.
+  Copyright (c) 2016-2018, Allan Jude
+  Copyright (c) 2018-2020, Sebastian Gottschall
+  Copyright (c) 2019-2020, Michael Niewöhner
+  Copyright (c) 2020, The FreeBSD Foundation [1]
+License: BSD-3-clause
+Comment:  [1] Portions of this software were developed by Allan Jude
+  under sponsorship from the FreeBSD Foundation.
 
 Files: scripts/*
 Copyright: 2003-2012, Ville Skyttä <ville.skytta@iki.fi>
@@ -807,6 +829,12 @@ License: CDDL-1.0
 Files: tests/zfs-tests/tests/functional/channel_program/lua_core/*.lua
 Copyright:1994-2016 Lua.org, PUC-Rio.
 License: Expat
+
+Files: tests/zfs-tests/tests/functional/cli_root/zpool_add/zpool_add_dryrun_output.ksh
+       tests/zfs-tests/tests/functional/cli_root/zpool_create/zpool_create_dryrun_output.ksh
+       tests/zfs-tests/tests/functional/cli_root/zpool_split/zpool_split_dryrun_output.ksh
+Copyright: 2020 Attila Fülöp <attila@fueloep.org>
+License: CDDL-1.0
 
 
 License: Expat
@@ -1209,6 +1237,29 @@ License: BSD-2-clause
  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+     * Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+     * Neither the name of the <organization> nor the
+       names of its contributors may be used to endorse or promote products
+       derived from this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");

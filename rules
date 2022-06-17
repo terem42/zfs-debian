@@ -10,7 +10,7 @@ LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
 DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
 		COPYRIGHT LICENSE README.md
 
-SPHINX_BUILD = $(shell dpkg -L python3-sphinx | grep "sphinx-build$$")
+DKMSFILESEXCLUDE := include/os/freebsd module/os/freebsd module/Makefile.bsd
 
 ifndef BUILD_UDEB
 BUILD_UDEB=false
@@ -31,12 +31,13 @@ PARALLEL = $(subst parallel=,,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 NJOBS    = -j$(or $(PARALLEL),$(NUM_CPUS),1)
 
 %:
-	dh $@ --with autoreconf,dkms,python3,systemd,sphinxdoc
+	dh $@ --with autoreconf,python3,sphinxdoc
 
 override_dh_autoreconf:
 	@# Embed the downstream version in the module.
 	@sed -e 's/^Version:.*/Version:       $(DEB_VERSION_UPSTREAM)/' -i.orig META
-	@./autogen.sh
+
+	dh_autoreconf
 
 override_dh_auto_configure:
 ifeq ($(BUILD_UDEB), true)
@@ -47,15 +48,23 @@ endif
 	dh_auto_configure -- \
 	  --bindir=/usr/bin \
 	  --sbindir=/sbin \
-	  --libdir=/lib \
+	  --libdir=/lib/"$(DEB_HOST_MULTIARCH)" \
 	  --with-udevdir=/lib/udev \
 	  --with-zfsexecdir=/usr/lib/zfs-linux \
 	  --enable-systemd \
 	  --enable-pyzfs \
+	  --with-python=python3 \
+	  --with-pammoduledir='/lib/$(DEB_HOST_MULTIARCH)/security' \
+	  --with-pkgconfigdir='/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig' \
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
 	  --with-systemdgeneratordir=/lib/systemd/system-generators \
 	  --with-config=user
+
+	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
+		basename "$$i" | grep _KVERS_ && continue ; \
+		sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' "$$i" > "$${i%%.in}" ; \
+	done
 
 override_dh_gencontrol:
 	dh_gencontrol -- -Vlinux:Recommends="linux-libc-dev (<< $(LINUX_NEXT)~), linux-libc-dev (>= $(LINUX_MIN)~),"
@@ -69,6 +78,11 @@ override_dh_auto_build:
 	dh_auto_build
 
 override_dh_auto_test:
+ifeq (amd64,$(DEB_HOST_ARCH))
+	# Upstream provides an ABI guarantee that we validate here
+	-$(MAKE) checkabi
+endif
+
 	# The dh_auto_test rule is disabled because
 	# `make check` cannot run in an unprivileged build environment.
 
@@ -95,21 +109,30 @@ override_dh_auto_install:
 	@# We only want the files needed to build the modules
 	install -D -t '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/scripts' \
 		'$(CURDIR)/scripts/enum-extract.pl' \
-		'$(CURDIR)/scripts/make_gitrev.sh' \
 		'$(CURDIR)/scripts/dkms.postbuild'
-	#mkdir -p '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/contrib/'
-	#mv '$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/contrib/zstd' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/contrib/'
 	$(foreach file,$(DKMSFILES),mv '$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)' || exit 1;)
+
+	@# Do not include FreeBSD kernel sources in the Linux DKMS package
+	$(foreach file,$(DKMSFILESEXCLUDE),rm -r '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' || exit 1;)
+	@# Only ever build Linux modules
+	echo 'SUBDIRS = linux' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/Makefile.am'
+
 	@# Hellish awk line:
 	@#  * Deletes from configure.ac the parts not needed for building the kernel module
 	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
-	@#        (Makefile$|include/|module/|*.release$)
+	@#        - Makefile$
+	@#        - include/(Makefile|sys|os/(Makefile|linux))
+	@#        - module/
+	@#        - zfs.release$
 	@#  * Takes care of spaces and tabs
 	@#  * Remove reference to ZFS_AC_PACKAGE
-	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ { if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/){next} } {print}' \
+	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
+		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
+		{next} } {print}' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
-	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;' \
+	@# Do not regenerate zfs_gitrev.h during dkms build
+	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
 	@# Sanity test
 	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
@@ -117,9 +140,8 @@ override_dh_auto_install:
 	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
 
-	mkdir -p $(CURDIR)/debian/tmp/usr/lib
-	for i in `ls $(CURDIR)/debian/tmp/lib/*.so`; do \
-		ln -s /lib/`readlink $${i}` $(CURDIR)/debian/tmp/usr/lib/`basename $${i}`; \
+	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
+		ln -s '/lib/$(DEB_HOST_MULTIARCH)/'`readlink $${i}` '$(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/'`basename $${i}`; \
 		rm $${i}; \
 	done
 
@@ -138,20 +160,22 @@ override_dh_dkms:
 override_dh_makeshlibs:
 	dh_makeshlibs -a -V
 ifeq ($(BUILD_UDEB), true)
-	dh_makeshlibs -V -plibnvpair1linux --add-udeb=libnvpair1-udeb
-	dh_makeshlibs -V -plibuutil1linux --add-udeb=libuutil1-udeb
-	dh_makeshlibs -V -plibzfs2linux --add-udeb=libzfs2-udeb
-	dh_makeshlibs -V -plibzpool2linux --add-udeb=libzpool2-udeb
+	dh_makeshlibs -V -plibnvpair3linux --add-udeb=libnvpair3-udeb
+	dh_makeshlibs -V -plibuutil3linux --add-udeb=libuutil3-udeb
+	dh_makeshlibs -V -plibzfs4linux --add-udeb=libzfs4-udeb
+	dh_makeshlibs -V -plibzfsbootenv1linux --add-udeb=libzfsbootenv1-udeb
+	dh_makeshlibs -V -plibzpool5linux --add-udeb=libzpool5-udeb
 	dh_makeshlibs -V -pzfsutils-linux --add-udeb=zfsutils-udeb
 endif
 
 override_dh_strip:
 	dh_strip
 ifeq ($(BUILD_UDEB), true)
-	dh_strip -plibnvpair1-udeb
-	dh_strip -plibuutil1-udeb
-	dh_strip -plibzfs2-udeb
-	dh_strip -plibzpool2-udeb
+	dh_strip -plibnvpair3-udeb
+	dh_strip -plibuutil3-udeb
+	dh_strip -plibzfs4-udeb
+	dh_strip -plibzfsbootenv1-udeb
+	dh_strip -plibzpool5-udeb
 	dh_strip -pzfsutils-udeb
 endif
 
@@ -166,21 +190,29 @@ ifeq ($(BUILD_UDEB), true)
 endif
 
 override_dh_install:
-	find . -name lib*.la -delete
-	dh_install --fail-missing
+	find debian/tmp/lib -name *.la -delete
+	dh_install
+
+override_dh_missing:
+	dh_missing --fail-missing
 
 override_dh_installinit:
-	dh_installinit -R --name zfs-import
-	dh_installinit -R --name zfs-mount
+	dh_installinit -r --no-restart-after-upgrade --name zfs-import
+	dh_installinit -r --no-restart-after-upgrade --name zfs-mount
 	dh_installinit -R --name zfs-share
 	dh_installinit -R --name zfs-zed
-#	mkdir -p debian/zfsutils-linux/lib/systemd/system
-#	ln -sr /dev/null debian/zfsutils-linux/lib/systemd/system/zfs-import.service
+
+override_dh_installsystemd:
+	mkdir -p debian/zfsutils-linux/lib/systemd/system
+	ln -sr /dev/null debian/zfsutils-linux/lib/systemd/system/zfs-import.service
+	dh_installsystemd --no-stop-on-upgrade -X zfs-zed.service
+	dh_installsystemd --name zfs-zed
 
 override_dh_installdocs:
-	dh_installdocs
+	dh_installdocs -A
+	dh_installdocs -a -i -A debian/README.Debian
 ifeq (,$(findstring nodoc, $(DEB_BUILD_OPTIONS)))
-	http_proxy='127.0.0.1:9' $(SPHINX_BUILD) -N -bhtml "$(CURDIR)/contrib/pyzfs/docs/source/" debian/pyzfs-doc/usr/share/doc/pyzfs-doc/html/
+	http_proxy='127.0.0.1:9' sphinx-build -N -bhtml "$(CURDIR)/contrib/pyzfs/docs/source/" debian/pyzfs-doc/usr/share/doc/pyzfs-doc/html/
 endif
 
 # ------------

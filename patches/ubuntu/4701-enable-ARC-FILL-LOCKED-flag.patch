@@ -1,0 +1,21 @@
+Description: enable ARC_FILL_LOCKED in arc_buf_fill
+  Avoid any races by enabling ARC_FILL_LOCKED during in the
+  arc_buf_fill call chain
+Author: Colin Ian King <colin.king@canonical.com>
+Origin: ubuntu (LP: #1900889)
+Forwarded: no
+Last-Update: 2020-10-22
+
+Index: zfs-linux-2.0.6/module/zfs/arc.c
+===================================================================
+--- zfs-linux-2.0.6.orig/module/zfs/arc.c
++++ zfs-linux-2.0.6/module/zfs/arc.c
+@@ -2182,7 +2182,7 @@ arc_untransform(arc_buf_t *buf, spa_t *s
+     boolean_t in_place)
+ {
+ 	int ret;
+-	arc_fill_flags_t flags = 0;
++	arc_fill_flags_t flags = ARC_FILL_LOCKED;
+ 
+ 	if (in_place)
+ 		flags |= ARC_FILL_IN_PLACE;

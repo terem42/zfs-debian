@@ -1,1 +1,6 @@
-binary-package-depends-on-toolchain-package suggests: debhelper
+binary-package-depends-on-toolchain-package Suggests: debhelper
+extra-license-file usr/share/doc/zfs-dkms/LICENSE.gz
+extra-license-file usr/src/zfs-*/LICENSE
+package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/LICENSE
+package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/README.md
+package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/COPYRIGHT

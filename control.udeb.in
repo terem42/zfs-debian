@@ -1,4 +1,4 @@
-Package: libnvpair1-udeb
+Package: libnvpair3-udeb
 Package-Type: udeb
 Section: contrib/debian-installer
 Architecture: linux-any
@@ -10,7 +10,7 @@ Description: Solaris name-value library for Linux (debian-installer)
  .
  This is a minimal package for use in debian-installer.
 
-Package: libuutil1-udeb
+Package: libuutil3-udeb
 Package-Type: udeb
 Section: contrib/debian-installer
 Architecture: linux-any
@@ -28,7 +28,7 @@ Description: Solaris userland utility library for Linux (debian-installer)
  .
  This is a minimal package for use in debian-installer.
 
-Package: libzfs2-udeb
+Package: libzfs4-udeb
 Package-Type: udeb
 Section: contrib/debian-installer
 Architecture: linux-any
@@ -41,7 +41,7 @@ Description: OpenZFS library (debian-installer)
  .
  This is a minimal package for use in debian-installer.
 
-Package: libzpool2-udeb
+Package: libzpool5-udeb
 Package-Type: udeb
 Section: contrib/debian-installer
 Architecture: linux-any
@@ -59,10 +59,11 @@ Package: zfsutils-udeb
 Package-Type: udeb
 Section: contrib/debian-installer
 Architecture: linux-any
-Depends: libnvpair1-udeb (= ${binary:Version}),
-         libuutil1-udeb (= ${binary:Version}),
-         libzfs2-udeb (= ${binary:Version}),
-         libzpool2-udeb (= ${binary:Version}),
+Depends: libnvpair3-udeb (= ${binary:Version}),
+         libuutil3-udeb (= ${binary:Version}),
+         libzfs4-udeb (= ${binary:Version}),
+         libzpool5-udeb (= ${binary:Version}),
+         zfs-modules,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: command-line tools to manage OpenZFS filesystems (debian-installer)

@@ -1,0 +1,126 @@
+# zfs-linux po-debconf translation to Spanish
+# Copyright (C) 2021 Software in the Public Interest
+# This file is distributed under the same license as the zfs-linux package.
+#
+# Changes:
+# - Initial translation
+# Camaleón <noelamac@gmail.com>, 2021
+#
+# - Updates
+#
+#
+# Traductores, si no conocen el formato PO, merece la pena leer la
+# documentación de gettext, especialmente las secciones dedicadas a este
+# formato, por ejemplo ejecutando:
+# info -n '(gettext)PO Files'
+# info -n '(gettext)Header Entry'
+#
+# Equipo de traducción al español, por favor lean antes de traducir
+# los siguientes documentos:
+#
+# - El proyecto de traducción de Debian al español
+# http://www.debian.org/intl/spanish/
+# especialmente las notas y normas de traducción en
+# http://www.debian.org/intl/spanish/notas
+#
+# - La guía de traducción de po's de debconf:
+# /usr/share/doc/po-debconf/README-trans
+# o http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2021-03-30 14:43+0800\n"
+"PO-Revision-Date: 2021-04-10 10:32+0200\n"
+"Last-Translator: Camaleón <noelamac@gmail.com>\n"
+"Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building OpenZFS on a 32-bit kernel?"
+msgstr "¿Desea abortar la compilación de OpenZFS en un núcleo de 32 bits?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
+msgstr "Va a compilar OpenZFS en un núcleo de 32 bits."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using OpenZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Aunque sea posible compilar OpenZFS en un entorno de 32 bits, no es una "
+"configuración admitida y probablemente cause inestabilidad que derive en una "
+"posible corrupción de datos. Le recomendamos encarecidamente que utilice un "
+"núcleo de 64 bits. Si aún así decide utilizar OpenZFS en este núcleo, "
+"recuerde que será bajo su cuenta y riesgo."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building OpenZFS on an unknown kernel?"
+msgstr "¿Desea abortar la compilación de OpenZFS en un núcleo desconocido?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build OpenZFS against a running kernel that could not "
+"be identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Va a compilar OpenZFS en un núcleo que no se puede identificar como de"
+"32 bits ni 64 bits. Si no está seguro de que el núcleo sea de 64 bits, "
+"debería detener la compilación."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of OpenZFS and Linux are incompatible"
+msgstr "Las licencias de OpenZFS y Linux son incompatibles."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"OpenZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"OpenZFS se encuentra bajo la Licencia Común de Desarrollo y Distribución (CDDL) "
+"y el núcleo de Linux bajo la Licencia Pública General de GNU Versión 2 (GPL-2). "
+"Aunque las dos licencias son de código abierto, ambas son licencias restrictivas. "
+"Combinarlas genera problemas porque impide utilizar en un mismo archivo binario, "
+"partes de código disponibles exclusivamente bajo una de las licencias con partes "
+"de código disponibles exclusivamente bajo la otra licencia."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build OpenZFS using DKMS in such a way that they are not "
+"going to be built into one monolithic binary. Please be aware that "
+"distributing both of the binaries in the same media (disk images, virtual "
+"appliances, etc) may lead to infringing."
+msgstr ""
+"Va a compilar OpenZFS utilizando DKMS de manera que no se van a compilar "
+"en un único binario monolítico. Por favor, recuerde que si distribuye los dos "
+"binarios en el mismo medio (imágenes de disco, máquinas virtuales, etc.) podría "
+"infringir los términos de sus respectivas licencias."

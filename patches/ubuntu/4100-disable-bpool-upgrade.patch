@@ -1,0 +1,49 @@
+Description: Disable bpool upgrade
+ On ubuntu, upgrade of bpool is disabled to prevent users to break their
+ system by upgrading to features not supported by GRUB.
+Author: Jean-Baptiste Lallement <jean.baptiste@ubuntu.com>
+        Didier Roche <didrocks@ubuntu.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1847389
+Forwarded: not-needed
+Last-Update: 2020-04-14
+===================================================================
+Index: zfs-linux-2.1.2/cmd/zpool/zpool_main.c
+===================================================================
+--- zfs-linux-2.1.2.orig/cmd/zpool/zpool_main.c
++++ zfs-linux-2.1.2/cmd/zpool/zpool_main.c
+@@ -8842,6 +8842,16 @@ upgrade_enable_all(zpool_handle_t *zhp,
+ {
+ 	int i, ret, count;
+ 	boolean_t firstff = B_TRUE;
++
++	// On ubuntu, upgrade of bpool is disabled to prevent users to break their
++	// system by upgrading to features not supported by GRUB
++	if (strcmp("bpool", zpool_get_name(zhp)) == 0) {
++		(void) fprintf(stderr, gettext("'zpool upgrade' is disabled for"
++		    " 'bpool' to keep compatibility with GRUB.\n"
++		    "Skipping upgrade.\n"));
++		return (0);
++	}
++
+ 	nvlist_t *enabled = zpool_get_features(zhp);
+ 
+ 	char compat[ZFS_MAXPROPLEN];
+Index: zfs-linux-2.1.2/lib/libzfs/libzfs_status.c
+===================================================================
+--- zfs-linux-2.1.2.orig/lib/libzfs/libzfs_status.c
++++ zfs-linux-2.1.2/lib/libzfs/libzfs_status.c
+@@ -526,6 +526,14 @@ zpool_get_status(zpool_handle_t *zhp, ch
+ 		else
+ 			*msgid = zfs_msgid_table[ret];
+ 	}
++
++	// On Ubuntu GRUB is incompatible with newest features of zfs. In order to
++	// prevent people from upgrading bpool, the message to suggest to upgrade
++	// the pool is removed.
++	if (ret == ZPOOL_STATUS_FEAT_DISABLED && strcmp(zpool_get_name(zhp), "bpool") == 0) {
++		ret = ZPOOL_STATUS_OK;
++	}
++
+ 	return (ret);
+ }
+ 

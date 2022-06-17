@@ -1,0 +1,15 @@
+bin/
+cmd/zed/zed.d/history_event-zfs-list-cacher.sh
+contrib/pyzfs/build/
+contrib/pyzfs/libzfs_core/__pycache__/
+contrib/pyzfs/libzfs_core/bindings/__pycache__/
+contrib/pyzfs/pyzfs.egg-info/
+debian/libnvpair3linux-udeb.install
+debian/libnvpair3linux.install
+debian/libuutil3linux-udeb.install
+debian/libuutil3linux.install
+debian/libzfs4linux-udeb.install
+debian/libzfs4linux.install
+debian/libzfslinux-dev.install
+debian/libzpool5linux-udeb.install
+debian/libzpool5linux.install

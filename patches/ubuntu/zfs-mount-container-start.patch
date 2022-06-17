@@ -1,0 +1,18 @@
+Description: Start zfs-mount.service after zfs-load-module.service, and if zfs
+ module was actually loaded. This should allow installation of probert in
+ containers, which pulls in zfs-linux utilities.
+Author: Dimitri John Ledkov <xnox@ubuntu.com>
+
+
+Index: zfs-linux-2.0.1/etc/systemd/system/zfs-mount.service.in
+===================================================================
+--- zfs-linux-2.0.1.orig/etc/systemd/system/zfs-mount.service.in
++++ zfs-linux-2.0.1/etc/systemd/system/zfs-mount.service.in
+@@ -5,6 +5,7 @@ DefaultDependencies=no
+ After=systemd-udev-settle.service
+ After=zfs-import.target
+ After=systemd-remount-fs.service
++After=zfs-load-module.service
+ Before=local-fs.target
+ ConditionPathIsDirectory=/sys/module/zfs
+ 

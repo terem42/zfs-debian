@@ -1,33 +1,35 @@
-# Translation of zfs-linux debconf templates to French. 
-# Copyright (C) 2013, French l10n team <debian-l10n-french@lists.debian.org>
+# Translation of zfs-linux debconf templates to French.
+# Copyright (C) 2013, 2021 French l10n team <debian-l10n-french@lists.debian.org>
 # This file is distributed under the same license as the zfs-linux package.
-# Julien Patriarca <leatherface@debian.org>, 2013.
 #
+# Julien Patriarca <leatherface@debian.org>, 2013.
+# Jean-Pierre Giraud <jean-pierregiraud@neuf.fr>, 2021.
 msgid ""
 msgstr ""
 "Project-Id-Version: zfs-linux\n"
 "Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
-"POT-Creation-Date: 2015-11-01 14:11+0800\n"
-"PO-Revision-Date: 2019-08-02 14:56+0200\n"
-"Last-Translator: Julien Patriarca <leatherface@debian.org>\n"
-"Language-Team: FRENCH <debian-l10n-french@lists.debian.org>\n"
+"POT-Creation-Date: 2021-03-30 14:43+0800\n"
+"PO-Revision-Date: 2021-03-19 09:16+0100\n"
+"Last-Translator: Jean-Pierre Giraud <jean-pierregiraud@neuf.fr>\n"
+"Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 2.2.3\n"
+"X-Generator: Lokalize 2.0\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:1001
-msgid "Abort building ZFS on a 32-bit kernel?"
-msgstr "Abandonner la compilation de ZFS sur un noyau 32 bits ?"
+msgid "Abort building OpenZFS on a 32-bit kernel?"
+msgstr "Faut-il abandonner la compilation de OpenZFS sur un noyau 32 bits ?"
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:1001
-msgid "You are attempting to build ZFS against a 32-bit running kernel."
-msgstr "Vous êtes en train d'essayer de compiler ZFS sur un noyau 32 bits."
+msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
+msgstr "Vous êtes en train d'essayer de compiler OpenZFS sur un noyau 32 bits."
 
 #. Type: boolean
 #. Description
@@ -38,68 +40,117 @@ msgid ""
 "Although possible, building in a 32-bit environment is unsupported and "
 "likely to cause instability leading to possible data corruption. You are "
 "strongly advised to use a 64-bit kernel; if you do decide to proceed with "
-"using ZFS on this kernel then keep in mind that it is at your own risk."
+"using OpenZFS on this kernel then keep in mind that it is at your own risk."
 msgstr ""
 "Même si c'est en théorie possible, compiler au sein d'un environnement "
 "32 bits n'est pas géré et peut entraîner une instabilité du système pouvant "
 "aboutir à une corruption des données. Il vous est fortement recommandé "
-"d'utiliser un noyau 64 bits ; si vous décidez d'utiliser ZFS sur ce noyau, "
-"gardez à l'esprit que c'est à vos propres risques."
+"d'utiliser un noyau 64 bits ; si vous décidez d'utiliser OpenZFS sur ce "
+"noyau, gardez à l'esprit que c'est à vos propres risques."
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:2001
-msgid "Abort building ZFS on an unknown kernel?"
-msgstr "Abandonner la compilation de ZFS sur un noyau inconnu ?"
+msgid "Abort building OpenZFS on an unknown kernel?"
+msgstr "Faut-il abandonner la compilation d'OpenZFS sur un noyau inconnu ?"
 
 #. Type: boolean
 #. Description
 #: ../zfs-dkms.templates:2001
 msgid ""
-"You are attempting to build ZFS against a running kernel that could not be "
-"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"You are attempting to build OpenZFS against a running kernel that could not "
+"be identified as 32-bit or 64-bit. If you are not completely sure that the "
 "running kernel is a 64-bit one, you should probably stop the build."
 msgstr ""
-"Vous êtes en train d'essayer de compiler ZFS sur un noyau qui n'a pu être "
-"identifié comme 32 bits ou 64 bits. Si vous n'êtes pas certain que le noyau "
-"actuel est un 64 bits, vous devriez arrêter la compilation."
+"Vous êtes en train d'essayer de compiler OpenZFS sur un noyau qui n'a pu "
+"être identifié comme 32 bits ou 64 bits. Si vous n'êtes pas certain que le "
+"noyau actuel est un 64 bits, vous devriez arrêter la compilation."
 
 #. Type: note
 #. Description
 #: ../zfs-dkms.templates:3001
-msgid "Licenses of ZFS and Linux are incompatible"
-msgstr "Les licences de ZFS et de Linux ne sont pas compatibles"
+msgid "Licenses of OpenZFS and Linux are incompatible"
+msgstr "Les licences d'OpenZFS et de Linux ne sont pas compatibles"
 
 #. Type: note
 #. Description
 #: ../zfs-dkms.templates:3001
 msgid ""
-"ZFS is licensed under the Common Development and Distribution License "
+"OpenZFS is licensed under the Common Development and Distribution License "
 "(CDDL), and the Linux kernel is licensed under the GNU General Public "
 "License Version 2 (GPL-2). While both are free open source licenses they are "
 "restrictive licenses. The combination of them causes problems because it "
 "prevents using pieces of code exclusively available under one license with "
 "pieces of code exclusively available under the other in the same binary."
 msgstr ""
-"ZFS dispose d'une licence « Common Development and Distribution "
-"License » (CDDL), et le noyau Linux d'une licence GNU « General Public "
-"License » Version 2 (GPL-2). Bien qu'elles soient toutes les deux des "
-"licences libres pour logiciels ouverts, elles restent restrictives. La "
-"combinaison des deux pose des problèmes car cela empêche l'utilisation de "
-"parties de code disponibles exclusivement sous une licence avec d'autres "
-"parties de code disponibles exclusivement sous l'autre, dans le même fichier."
+"OpenZFS dispose d'une licence « Common Development and Distribution "
+"License » (CDDL) et le noyau Linux d'une licence GNU « General Public "
+"License » version 2 (GPL-2). Bien qu'elles soient toutes les deux des "
+"licences libres pour logiciels à code source ouvert, elles restent "
+"restrictives. La combinaison des deux pose des problèmes, car cela empêche "
+"l'utilisation de parties de code disponibles exclusivement sous une licence "
+"avec d'autres parties de code disponibles exclusivement sous l'autre, dans "
+"le même exécutable."
 
 #. Type: note
 #. Description
 #: ../zfs-dkms.templates:3001
 msgid ""
-"You are going to build ZFS using DKMS in such a way that they are not going "
-"to be built into one monolithic binary. Please be aware that distributing "
-"both of the binaries in the same media (disk images, virtual appliances, "
-"etc) may lead to infringing."
+"You are going to build OpenZFS using DKMS in such a way that they are not "
+"going to be built into one monolithic binary. Please be aware that "
+"distributing both of the binaries in the same media (disk images, virtual "
+"appliances, etc) may lead to infringing."
 msgstr ""
-"Vous êtes sur le point de construire ZFS en utilisant DKMS d'une manière qui "
-"fera qu'ils ne seront pas intégrés dans un binaire unique. Veuillez prendre "
-"en considération que la distribution de ces deux binaires au sein d'un même "
-"média (images de disque, machines virtuelles, etc) peut mener à une "
-"infraction."
+"Vous êtes sur le point de construire OpenZFS en utilisant DKMS d'une manière "
+"qui fera qu'ils ne seront pas intégrés dans un binaire monolithique. "
+"Veuillez prendre en considération que la distribution des deux binaires au "
+"sein d'un même média (images de disque, machines virtuelles, etc) peut mener "
+"à une utilisation illicite."
+
+#~ msgid "Scrub OpenZFS pools periodically?"
+#~ msgstr "Faut-il nettoyer régulièrement les pools OpenZFS ?"
+
+#~ msgid ""
+#~ "Scrubbing storage pool data is a routine maintenance operation that check "
+#~ "all data against known checksums, and fix early problems like bit rots. "
+#~ "This operation is scheduled with low priority in the background, and "
+#~ "usually does not have big impact on performance when the pool is not "
+#~ "heavily utilized."
+#~ msgstr ""
+#~ "Le nettoyage des données de l'ensemble de stockage (pool) est une "
+#~ "opération de maintenance de routine qui vérifie toutes les données avec "
+#~ "les sommes de contrôle connues et qui corrige tôt les problèmes comme les "
+#~ "corruptions d'octets. Cette opération est programmée avec une priorité "
+#~ "basse en arrière-plan et habituellement n'a pas beaucoup d'impact sur les "
+#~ "performances quand le pool n'est pas lourdement utilisé."
+
+#~ msgid ""
+#~ "Would you like to scrub all pools periodically? By default scrub jobs are "
+#~ "scheduled on every first Sunday of month."
+#~ msgstr ""
+#~ "Souhaitez-vous nettoyer tous les pools régulièrement ? Par défaut, les "
+#~ "tâches de nettoyage sont programmées le premier dimanche de chaque mois."
+
+#~ msgid "TRIM SSD devices in OpenZFS pools periodically?"
+#~ msgstr ""
+#~ "Faut-il appliquer régulièrement la commande TRIM aux périphériques SSD "
+#~ "dans les pools OpenZFS ?"
+
+#~ msgid ""
+#~ "Some SSD devices require proper scheduling of TRIM commands to maintain "
+#~ "best performance. Would you like to TRIM SSD devices periodically?"
+#~ msgstr ""
+#~ "Certains périphériques SSD ont besoin d'une programmation appropriée de "
+#~ "la commande TRIM pour conserver des performances optimales. Souhaitez-"
+#~ "vous appliquer régulièrement la commande TRIM aux périphériques SSD ?"
+
+#~ msgid ""
+#~ "TRIM jobs are scheduled on every first Sunday of month to NVMe devices in "
+#~ "pools by default. You can choose to enable TRIM for all SSD or disable it "
+#~ "completely. If no suitable SSD device is found, nothing will be done."
+#~ msgstr ""
+#~ "Les tâches de TRIM sont programmées par défaut le premier dimanche de "
+#~ "chaque mois pour les périphériques NVMe dans les pools. Vous pouvez "
+#~ "choisir d'activer la commande TRIM pour tous les SSD ou de la désactiver "
+#~ "complètement. Si aucun périphérique SSD compatible n'est trouvé, rien ne "
+#~ "sera fait."

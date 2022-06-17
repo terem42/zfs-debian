@@ -1,0 +1,33 @@
+Description: Don't fail if zfs modules can't load on package installation
+  Ideally, modprobe should be attempted but not fatal (LP: #1880421)
+Author: Colin Ian King <colin.king@canonical.com>
+Origin: ubuntu
+Forwarded: no
+Last-Update: 2020-06-04
+
+Index: zfs-linux-2.0.1/etc/systemd/system/zfs-load-module.service.in
+===================================================================
+--- zfs-linux-2.0.1.orig/etc/systemd/system/zfs-load-module.service.in
++++ zfs-linux-2.0.1/etc/systemd/system/zfs-load-module.service.in
+@@ -10,7 +10,7 @@ After=systemd-remount-fs.service
+ [Service]
+ Type=oneshot
+ RemainAfterExit=yes
+-ExecStart=/sbin/modprobe zfs
++ExecStart=-/sbin/modprobe zfs
+ 
+ [Install]
+ WantedBy=zfs-mount.service
+Index: zfs-linux-2.0.1/etc/systemd/system/zfs-share.service.in
+===================================================================
+--- zfs-linux-2.0.1.orig/etc/systemd/system/zfs-share.service.in
++++ zfs-linux-2.0.1/etc/systemd/system/zfs-share.service.in
+@@ -13,7 +13,7 @@ ConditionPathIsDirectory=/sys/module/zfs
+ [Service]
+ Type=oneshot
+ RemainAfterExit=yes
+-ExecStart=@sbindir@/zfs share -a
++ExecStart=-@sbindir@/zfs share -a
+ 
+ [Install]
+ WantedBy=zfs.target

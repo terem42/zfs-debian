@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+testuser="testrunner"
+
+grep -q "^KillUserProcesses=yes$" /etc/systemd/logind.conf || echo "KillUserProcesses=yes" >>/etc/systemd/logind.conf
+systemctl restart systemd-logind.service
+
+if testuid=$(id -u $testuser 2>/dev/null) ; then
+    systemctl stop user-$testuid.slice
+else
+    useradd ${testuser}
+fi
+
+echo "${testuser} ALL=(root:root) NOPASSWD:ALL" >/etc/sudoers.d/zfs-${testuser}
+
+modprobe zfs
+zfs unmount -a -f
+sleep 1
+zpool export -a
+
+losetup -D
+systemctl stop zfs-zed.service nfs-blkmap.service nfs-server.service nfs-client.target nfs-idmapd.service nfs-mountd.service
+rm -f /etc/hostid
+
+testdir="$(mktemp -d)"
+chown ${testuser}:${testuser} $testdir
+chmod 0775 $testdir
+
+setpriv --reset-env --init-groups --reuid ${testuser} --regid ${testuser} /usr/share/zfs/zfs-tests.sh -v -d $testdir

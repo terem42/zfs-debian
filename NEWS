@@ -1,0 +1,52 @@
+zfs-linux (0.8.3-1) unstable; urgency=medium
+
+  The SIMD acceleration has been fixed in this upstream release.
+  Users could use the following two commands to double check:
+
+    $ cat /sys/module/zfs/parameters/zfs_vdev_raidz_impl 
+    $ cat /sys/module/zcommon/parameters/zfs_fletcher_4_impl
+
+  Another notable change is the parallelization of the KABI checks
+  during the configure stage, which may significantly boost the
+  postinst stage of zfs-dkms that builds the kernel module.
+
+ -- Mo Zhou <lumin@debian.org>  Sat, 25 Jan 2020 13:26:02 +0800
+
+zfs-linux (0.8.0-1) experimental; urgency=medium
+
+  ZFS 0.8.0 introduced the following NEW features:
+
+    * Native encryption
+    * Raw encrypted 'zfs send/receive'
+    * Device removal
+    * Pool checkpoints
+    * Pool TRIM
+    * Pool initialization
+    * Project accounting and quota
+    * Channel programs
+    * Pyzfs
+    * Python 3 compatibility
+    * Direct IO
+
+  And the following performance improvements:
+
+    * Sequential scrub and resilver
+    * Allocation classes
+    * Administrative commands
+    * Parallel allocation
+    * Deferred resilvers
+    * ZFS Intent Log (ZIL)
+    * Volumes
+    * QAT
+
+  Details about the features and performance improvements can be found at:
+
+    https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.8.0
+
+  NEWS on the Debian packaging side:
+
+    * ZFS doesn't depend on the spl-dkms package anymore, because
+      upstream had merged SPL source into ZFS source tree, and that
+      module is now included in the zfs-dkms package.
+
+ -- Mo Zhou <cdluminate@gmail.com>  Fri, 24 May 2019 03:27:43 +0000
