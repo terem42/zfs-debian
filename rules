@@ -123,13 +123,10 @@ override_dh_auto_install:
 	echo 'bef123'
 	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
-	echo 'aft123'
 	@# Sanity test
-	echo 'bef456'
 	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
-	echo 'aft456'
-	@# Run autogen on the stripped source tree
-	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
+	@# Run autogen on the stripped source tree      
+	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)';ls ./ -al:./autogen.sh
 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
 
 	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
