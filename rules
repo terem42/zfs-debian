@@ -7,7 +7,7 @@ NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
 LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
 LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
 
-DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
+DKMSFILES := module config zfs.release.in autogen.sh META AUTHORS \
 		COPYRIGHT LICENSE README.md
 
 DKMSFILESEXCLUDE := include/os/freebsd module/os/freebsd module/Makefile.bsd
