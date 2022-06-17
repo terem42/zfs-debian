@@ -59,7 +59,7 @@ endif
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
 	  --with-systemdgeneratordir=/lib/systemd/system-generators \
-	  --with-config=srpm
+	  --with-config=user
 
 	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
 		basename "$$i" | grep _KVERS_ && continue ; \
@@ -126,10 +126,10 @@ override_dh_auto_install:
 	@#        - zfs.release$
 	@#  * Takes care of spaces and tabs
 	@#  * Remove reference to ZFS_AC_PACKAGE
-	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
-		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
-		{next} } {print}' \
-		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
+	@#awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
+	@#	if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
+	@#	{next} } {print}' \
+	@#	'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
 	@# Do not regenerate zfs_gitrev.h during dkms build
 	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
