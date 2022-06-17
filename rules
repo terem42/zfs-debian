@@ -59,7 +59,7 @@ endif
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
 	  --with-systemdgeneratordir=/lib/systemd/system-generators \
-	  --with-config=dist
+	  --with-config=srpm
 
 	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
 		basename "$$i" | grep _KVERS_ && continue ; \
