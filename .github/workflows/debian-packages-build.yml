@@ -15,8 +15,8 @@ jobs:
         run: |
           mkdir ~/zfs && cd ~/zfs
           git init
-          git fetch https://github.com/openzfs/zfs.git refs/heads/master --depth=1
-          git checkout FETCH_HEAD
+          git fetch https://github.com/openzfs/zfs.git refs/tags/zfs-2.1.4:refs/tags/zfs-2.1.4 --depth=1
+          git checkout zfs-2.1.4
       - name: clone our zfs ubuntu repo
         shell: bash
         run: |
