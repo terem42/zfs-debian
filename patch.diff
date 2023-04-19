@@ -1,0 +1,4432 @@
+diff --git a/README.Debian b/README.Debian
+index 3ccd5e7..1fb0077 100644
+--- a/README.Debian
++++ b/README.Debian
+@@ -65,4 +65,21 @@ please use zfs-initramfs with caution.
+ 
+  TRIM jobs are scheduled on every first Sunday of month by default.
+ 
++4. Setting name of home datatset other than default rpool/home
++-------------------------------------------------------------------------
++
++ libpam-zfs assumes that the location of home directories follows the
++ advice in the root-on-zfs HOWTO which places them in rpool/home.  To
++ change this, add the following option to the end of the line in each of:
++
++ /etc/pam.d/common-auth
++ /etc/pam.d/common-password
++ /etc/pam.d/common-session
++ 
++ for example, from common-auth:
++ from:
++ # auth     optional    pam_zfs_key.so
++ to:
++ # auth     optional    pam_zfs_key.so    homes=homepool/home
++ 
+  -- Mo Zhou <lumin@debian.org> Fri, 2 Apr 2021 12:23:00 +0000
+diff --git a/changelog b/changelog
+index 0d62a39..a8b51a4 100644
+--- a/changelog
++++ b/changelog
+@@ -1,17 +1,168 @@
+-zfs-linux (2.1.10-1) unstable; urgency=medium
++zfs-linux (2.1.10-1) UNRELEASED; urgency=medium
+ 
+-  * Rebuild from release 2.1.10
+- 
+- -- Andrey Prokopenko <and@debian.org>  Wed, 19 Apr 2023 09:10:12 +0200
++  [ Mo Zhou ]
++  * Fix riscv64 CI failure as well.
++
++  [ Aron Xu ]
++  * New upstream version 2.1.10
++  * Drop patches that are alreay in upstream stable release
++
++ -- Aron Xu <aron@debian.org>  Wed, 19 Apr 2023 13:36:17 +0800
++
++zfs-linux (2.1.9-4) unstable; urgency=medium
++
++  [ Mo Zhou ]
++  * Tentative fix for armel CI due to missing kernel headers.
++
++  [ наб ]
++  * /lib/zfs-linux/trim: don't exit 1 if last pool isn't nvme-only (Closes: #1030316)
++
++  [ Aron Xu ]
++  * cherry pick patches from upstream 2.1.10 stable branch
++  * libzpool5linux: update symbols
++
++ -- Aron Xu <aron@debian.org>  Wed, 19 Apr 2023 00:18:07 +0800
++
++zfs-linux (2.1.9-3) unstable; urgency=medium
++
++  * targeted cherry-pick to fix quality issues
++
++ -- Aron Xu <aron@debian.org>  Sat, 25 Mar 2023 23:07:02 +0800
++
++zfs-linux (2.1.9-2) unstable; urgency=medium
++
++  [ Aron Xu ]
++  * d/control: remove obsolete Recommends lsb-base
++  * cherry-pick upstream post 2.1.9 patches
++
++  [ Mo Zhou ]
++  * Cherry-pick more patches.
++  * Add a new symbol for libzpool5linux.
++
++ -- Aron Xu <aron@debian.org>  Sun, 26 Feb 2023 12:32:52 +0800
++
++zfs-linux (2.1.9-1) unstable; urgency=medium
++
++  * New upstream version 2.1.9
++
++ -- Aron Xu <aron@debian.org>  Thu, 26 Jan 2023 14:36:48 +0800
++
++zfs-linux (2.1.8-1) unstable; urgency=medium
++
++  [ Aron Xu ]
++  * New upstream version 2.1.8
++  * d/patches: drop patches merged upstream, refresh remaining ones
++  * Update std-ver to 4.6.2, no change required
++
++  [ Douglas A. Tutty ]
++  * README.Debian: document libpam-zfs usage for homes not in rpool (Closes: #1024128)
+ 
+-zfs-linux (2.1.4-2) UNRELEASED; urgency=medium
++ -- Aron Xu <aron@debian.org>  Sun, 22 Jan 2023 02:08:54 +0800
+ 
++zfs-linux (2.1.7-2) unstable; urgency=medium
++
++  [ Mo Zhou ]
++  * Add script for testing bullseye->bookworm upgrade. (irrelevant to packaging) (See: #1024326)
++
++  [ Paulo Henrique de Lima Santana ]
++  * Add Brazilian Portuguese debconf templates translation (Closes: #1026402)
++
++  [ Aron Xu ]
++  * Add upstream patch to avoid packaging.version.LegacyVersion (Closes: #1028174)
++  * libzfslinux-dev: Depends on libblkid-dev (Closes: #1023070)
++  * Add upstream patch for linux 6.1 and 6.2 compatibility (Closes: #1028242)
++
++ -- Aron Xu <aron@debian.org>  Fri, 13 Jan 2023 01:47:49 +0800
++
++zfs-linux (2.1.7-1) unstable; urgency=medium
++
++  * New upstream version 2.1.7
++  * Remove merged patches and refresh the remaining ones.
++
++ -- Mo Zhou <lumin@debian.org>  Fri, 02 Dec 2022 18:42:14 -0500
++
++zfs-linux (2.1.6-3) unstable; urgency=medium
++
++  [ наб ]
++  * Clean up and fix the automatic trim script. (Closes: #1022712)
++
++ -- Mo Zhou <lumin@debian.org>  Sat, 05 Nov 2022 23:29:46 -0400
++
++zfs-linux (2.1.6-2) unstable; urgency=medium
++
++  * Fix the accidentally broken systemd boot sequence.
++    (Fixes: https://github.com/openzfs/zfs/issues/14010)
++  * Install zfs-load-key.service (/dev/null).
++    The init script with the same name has to be skipped for systemd.
++
++ -- Mo Zhou <lumin@debian.org>  Tue, 11 Oct 2022 18:34:41 -0400
++
++zfs-linux (2.1.6-1) unstable; urgency=medium
++
++  [ Aron Xu ]
++  * trim: determine if a device uses nvme transport with lsblk (Closes: #990745)
++
++  [ Mo Zhou ]
++  * New upstream version 2.1.6 (Oct 2022)
++  * Install init script "zfs-load-keys". (Closes: #1017911)
++  * Symlink zfs,zpool to /bin/ for non-root usage. (Closes: #979437)
++  * Symlink zpool_influxdb to /bin. (Closes: #1001446)
++  * Merge changes from ubuntu diff from 2.1.5-1ubuntu1 to 2.1.5-1ubuntu5.
++    Changes during merge:
++      - OpenZFS upstream patches are dropped.
++      - d/control and d/tests/control are renamed with .ubuntu suffix.
++      - ABI check is not enforced.
++  * Refresh existing patches.
++  * Refresh symbols control file.
++  * Update lintian overrides.
++  * Deal with the annoying lintian mismatch due to square brackets.
++
++  [ Dimitri John Ledkov (ubuntu diff) ]
++    * Fix cross-compile of the dkms module.
++    * Adapt symbols file.
++    * Bump zzstd.ko module version number. All modules are going to be
++      merged into one upstream soon. At the moment all other modules
++      increase with every build, but zzstd one. Append zfs package version
++      to zzstd module version number, to make dkms module versions higher
++      than kernel prebuilt ones.
++    * Merge from Debian Unstable, remaining changes:
++      - debian/control:
++        + drop dependencies on "zfs-modules | zfs-dkms" such that all
++      packages can be installed in containers, on hosts that have zfs
++      module loaded.
++        + change initramfs/dracut packages to only Ubuntu-64bit
++      architectures, zfs is not well supported on 32bit arches
++      - debian/rules:
++        + enforce abi check on Ubuntu amd64
++      - debian/tests/control:
++        + reduce testing to smoketest only
++        + Ubuntu Kernel regression testing covers zfs testsuite
++      - debian/patches:
++        + Apply Ubuntu patchset to integrate with zsys
++
++ -- Mo Zhou <lumin@debian.org>  Tue, 04 Oct 2022 14:42:07 -0400
++
++zfs-linux (2.1.5-1) unstable; urgency=medium
++
++  [ Andreas Beckmann ]
+   * Switch to dh-sequence-dkms.
+   * Do not use deprecated dkms feature REMAKE_INITRD.
+   * Switch to autopkgtest-pkg-dkms.
+-  * Do not attempt to build the modules on PREEMPT_RT kernels.  (cf. #981212)
++  * Do not attempt to build the modules on PREEMPT_RT kernels. (cf. #981212)
++
++  [ Mo Zhou ]
++  * New upstream version 2.1.5 (June 2022) (Closes: #1012600)
++  * Remove merged patches:
++    - 4900-ppc-get-user-workaround.patch
++    - 4901-zvol_wait-Ignore-locked-zvols.patch
++    - no-REMAKE_INITRD.patch
++    And Rebase all remaining patches.
++
++  [ Alejandro R. Sedeño ]
++  * zfs-dracut: install new man page
++  * refresh symbols
+ 
+- -- Andreas Beckmann <anbe@debian.org>  Fri, 27 May 2022 22:27:37 +0200
++ -- Mo Zhou <lumin@debian.org>  Wed, 22 Jun 2022 20:48:20 -0700
+ 
+ zfs-linux (2.1.4-1) unstable; urgency=medium
+ 
+diff --git a/control b/control
+index 5b7eaeb..6bb6276 100644
+--- a/control
++++ b/control
+@@ -8,7 +8,7 @@ Uploaders: Aron Xu <aron@debian.org>,
+ Build-Depends: abigail-tools (>= 1.8),
+                debhelper-compat (= 12),
+                dh-python,
+-               dkms (>> 2.1.1.2-5),
++               dh-sequence-dkms,
+                libaio-dev,
+                libblkid-dev,
+                libcurl4-openssl-dev,
+@@ -25,7 +25,7 @@ Build-Depends: abigail-tools (>= 1.8),
+                python3-sphinx,
+                uuid-dev,
+                zlib1g-dev
+-Standards-Version: 4.5.1
++Standards-Version: 4.6.2
+ Homepage: https://zfsonlinux.org/
+ Vcs-Git: https://salsa.debian.org/zfsonlinux-team/zfs.git
+ Vcs-Browser: https://salsa.debian.org/zfsonlinux-team/zfs
+@@ -76,7 +76,8 @@ Description: Solaris userland utility library for Linux
+ Package: libzfslinux-dev
+ Section: contrib/libdevel
+ Architecture: linux-any
+-Depends: libssl-dev | libssl1.0-dev,
++Depends: libblkid-dev,
++         libssl-dev | libssl1.0-dev,
+          libnvpair3linux (= ${binary:Version}),
+          libuutil3linux (= ${binary:Version}),
+          libzfs4linux (= ${binary:Version}),
+@@ -240,7 +241,7 @@ Depends: libnvpair3linux (= ${binary:Version}),
+          python3,
+          ${misc:Depends},
+          ${shlibs:Depends}
+-Recommends: lsb-base, zfs-modules | zfs-dkms, zfs-zed
++Recommends: zfs-modules | zfs-dkms, zfs-zed
+ Breaks: openrc,
+         spl (<< 0.7.9-2),
+         spl-dkms (<< 0.8.0~rc1),
+diff --git a/control.modules.in b/control.modules.in
+index f270440..cb23630 100644
+--- a/control.modules.in
++++ b/control.modules.in
+@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 10),
+                dkms (>> 2.1.1.2-5),
+                libtool,
+                linux-headers-_KVERS_
+-Standards-Version: 4.3.0
++Standards-Version: 4.6.2
+ Homepage: http://www.zfsonlinux.org/
+ Vcs-Git: https://salsa.debian.org/zfsonlinux-team/zfs.git
+ Vcs-Browser: https://salsa.debian.org/zfsonlinux-team/zfs
+diff --git a/control.ubuntu b/control.ubuntu
+index e2a02e4..8f48f04 100644
+--- a/control.ubuntu
++++ b/control.ubuntu
+@@ -9,9 +9,10 @@ Uploaders: Aron Xu <aron@debian.org>,
+ Build-Depends: abigail-tools (>= 2.0),
+                debhelper-compat (= 12),
+                dh-python,
+-               dkms (>> 2.1.1.2-5),
++               dh-sequence-dkms,
+                libaio-dev,
+                libblkid-dev,
++               libcurl4-openssl-dev,
+                libelf-dev,
+                libpam0g-dev,
+                libssl-dev | libssl1.0-dev,
+@@ -25,11 +26,12 @@ Build-Depends: abigail-tools (>= 2.0),
+                python3-sphinx,
+                uuid-dev,
+                zlib1g-dev
+-Standards-Version: 4.5.1
++Standards-Version: 4.6.2
+ Homepage: https://zfsonlinux.org/
+ Vcs-Git: https://salsa.debian.org/zfsonlinux-team/zfs.git
+ Vcs-Browser: https://salsa.debian.org/zfsonlinux-team/zfs
+ Rules-Requires-Root: no
++Testsuite: autopkgtest-pkg-dkms
+ XS-Autobuild: yes
+ 
+ Package: libnvpair3linux
+@@ -94,6 +96,9 @@ Package: libzfs4linux
+ Section: contrib/libs
+ Architecture: linux-any
+ Depends: ${misc:Depends}, ${shlibs:Depends}
++# The libcurl4 is loaded through dlopen("libcurl.so.4").
++# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=988521
++Recommends: libcurl4
+ Breaks: libzfs2, libzfs4
+ Replaces: libzfs2, libzfs4
+ Description: OpenZFS filesystem library for Linux - general support
+@@ -234,7 +239,7 @@ Depends: libnvpair3linux (= ${binary:Version}),
+          python3,
+          ${misc:Depends},
+          ${shlibs:Depends}
+-Recommends: lsb-base, zfs-zed
++Recommends: zfs-zed
+ Breaks: openrc,
+         spl (<< 0.7.9-2),
+         spl-dkms (<< 0.8.0~rc1),
+diff --git a/libnvpair3linux.lintian-overrides b/libnvpair3linux.lintian-overrides
+index 490e4b0..17b33dd 100644
+--- a/libnvpair3linux.lintian-overrides
++++ b/libnvpair3linux.lintian-overrides
+@@ -1,2 +1,2 @@
+ package-name-doesnt-match-sonames
+-extra-license-file usr/share/doc/libnvpair3linux/LICENSE.gz
++extra-license-file [usr/share/doc/libnvpair3linux/LICENSE.gz]
+diff --git a/libuutil3linux.lintian-overrides b/libuutil3linux.lintian-overrides
+index 95a95b8..3b937d7 100644
+--- a/libuutil3linux.lintian-overrides
++++ b/libuutil3linux.lintian-overrides
+@@ -1,3 +1,3 @@
+ package-name-doesnt-match-sonames
+-extra-license-file usr/share/doc/libuutil3linux/LICENSE.gz
++extra-license-file [usr/share/doc/libuutil3linux/LICENSE.gz]
+ exit-in-shared-library
+diff --git a/libzfs4linux.lintian-overrides b/libzfs4linux.lintian-overrides
+index 8e3ea72..89f5bd1 100644
+--- a/libzfs4linux.lintian-overrides
++++ b/libzfs4linux.lintian-overrides
+@@ -1,3 +1,3 @@
+ package-name-doesnt-match-sonames
+-extra-license-file usr/share/doc/libzfs4linux/LICENSE.gz
++extra-license-file [usr/share/doc/libzfs4linux/LICENSE.gz]
+ exit-in-shared-library
+diff --git a/libzfsbootenv1linux.lintian-overrides b/libzfsbootenv1linux.lintian-overrides
+index b48c31d..2ad9a98 100644
+--- a/libzfsbootenv1linux.lintian-overrides
++++ b/libzfsbootenv1linux.lintian-overrides
+@@ -1,2 +1,2 @@
+ package-name-doesnt-match-sonames
+-extra-license-file usr/share/doc/libzfsbootenv1linux/LICENSE.gz
++extra-license-file [usr/share/doc/libzfsbootenv1linux/LICENSE.gz]
+diff --git a/libzfslinux-dev.lintian-overrides b/libzfslinux-dev.lintian-overrides
+index 235f5d6..dd0e6f4 100644
+--- a/libzfslinux-dev.lintian-overrides
++++ b/libzfslinux-dev.lintian-overrides
+@@ -1,2 +1,2 @@
+-extra-license-file usr/share/doc/libzfslinux-dev/LICENSE.gz
++extra-license-file [usr/share/doc/libzfslinux-dev/LICENSE.gz]
+ breakout-link
+diff --git a/libzpool5linux.lintian-overrides b/libzpool5linux.lintian-overrides
+index 887b8d5..7a7611d 100644
+--- a/libzpool5linux.lintian-overrides
++++ b/libzpool5linux.lintian-overrides
+@@ -1,2 +1,2 @@
+ package-name-doesnt-match-sonames
+-extra-license-file usr/share/doc/libzpool5linux/LICENSE.gz
++extra-license-file [usr/share/doc/libzpool5linux/LICENSE.gz]
+diff --git a/libzpool5linux.symbols b/libzpool5linux.symbols
+index 4b8fd97..c4548c4 100644
+--- a/libzpool5linux.symbols
++++ b/libzpool5linux.symbols
+@@ -10,10 +10,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  EdonRHash@Base 0.8.2
+  EdonRInit@Base 0.8.2
+  EdonRUpdate@Base 0.8.2
+- HIST_isError@Base 2.0
+- SHA1Final@Base 0.8.2
+- SHA1Init@Base 0.8.2
+- SHA1Update@Base 0.8.2
+  SHA256Init@Base 0.8.2
+  (arch=amd64)SHA256TransformBlocks@Base 0.8.2
+  SHA2Final@Base 0.8.2
+@@ -257,6 +253,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  bpobj_iterate@Base 0.8.2
+  bpobj_iterate_nofree@Base 0.8.2
+  bpobj_open@Base 0.8.2
++ bpobj_prefetch_subobj@Base 2.1.9
+  bpobj_space@Base 0.8.2
+  bpobj_space_range@Base 0.8.2
+  bptree_add@Base 0.8.2
+@@ -380,6 +377,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  dbuf_hold_impl@Base 0.8.2
+  dbuf_hold_level@Base 0.8.2
+  dbuf_init@Base 0.8.2
++ dbuf_is_l2cacheable@Base 2.1.6
+  dbuf_is_metadata@Base 0.8.2
+  dbuf_ksp@Base 0.8.2
+  dbuf_loan_arcbuf@Base 0.8.2
+@@ -947,6 +945,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  dsl_pool_init@Base 0.8.2
+  dsl_pool_mos_diduse_space@Base 0.8.2
+  dsl_pool_need_dirty_delay@Base 0.8.2
++ dsl_pool_need_wrlog_delay@Base 2.1.6
+  dsl_pool_open@Base 0.8.2
+  dsl_pool_open_special_dir@Base 0.8.2
+  dsl_pool_rele@Base 0.8.2
+@@ -960,6 +959,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  dsl_pool_upgrade_dir_clones@Base 0.8.2
+  dsl_pool_user_hold@Base 0.8.2
+  dsl_pool_user_release@Base 0.8.2
++ dsl_pool_wrlog_count@Base 2.1.6
+  dsl_pool_zrele_taskq@Base 2.0
+  dsl_process_sub_livelist@Base 2.0
+  dsl_prop_fini@Base 0.8.2
+@@ -1205,6 +1205,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  kstat_set_raw_ops@Base 0.8.2
+  l2arc_add_vdev@Base 0.8.2
+  l2arc_dev_hdr_update@Base 2.0
++ l2arc_exclude_special@Base 2.1.6
+  l2arc_feed_again@Base 0.8.2
+  l2arc_feed_min_ms@Base 0.8.2
+  l2arc_feed_secs@Base 0.8.2
+@@ -1380,7 +1381,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  lzjb_compress@Base 0.8.2
+  lzjb_decompress@Base 0.8.2
+  max_disabled_ms@Base 0.8.2
+- metaslab_aliquot@Base 0.8.2
+  metaslab_alloc@Base 0.8.2
+  metaslab_alloc_dva@Base 0.8.2
+  metaslab_alloc_trace_cache@Base 2.1
+@@ -1444,6 +1444,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  metaslab_preload_limit@Base 0.8.2
+  metaslab_recalculate_weight_and_sort@Base 0.8.2
+  metaslab_set_selected_txg@Base 2.0
++ metaslab_set_unflushed_dirty@Base 2.1.6
+  metaslab_set_unflushed_txg@Base 2.0
+  metaslab_sort_by_flushed@Base 2.0
+  metaslab_space_update@Base 2.0
+@@ -1457,7 +1458,9 @@ libzpool.so.5 libzpool5linux #MINVER#
+  metaslab_trace_init@Base 0.8.2
+  metaslab_trace_max_entries@Base 2.1
+  metaslab_unalloc_dva@Base 0.8.2
++ metaslab_unflushed_bump@Base 2.1.6
+  metaslab_unflushed_changes_memused@Base 2.0
++ metaslab_unflushed_dirty@Base 2.1.6
+  metaslab_unflushed_txg@Base 2.0
+  metaslab_unload@Base 0.8.2
+  metaslab_unload_delay@Base 0.8.2
+@@ -1574,7 +1577,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  range_tree_clear@Base 0.8.2
+  range_tree_contains@Base 0.8.2
+  range_tree_create@Base 0.8.2
+- range_tree_create_impl@Base 0.8.2
++ range_tree_create_gap@Base 2.1.6
+  range_tree_destroy@Base 0.8.2
+  range_tree_find@Base 0.8.2
+  range_tree_find_in@Base 2.0
+@@ -1622,12 +1625,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  rrw_init@Base 0.8.2
+  rrw_tsd_destroy@Base 0.8.2
+  rrw_tsd_key@Base 0.8.2
+- rt_btree_add@Base 2.0
+- rt_btree_create@Base 2.0
+- rt_btree_destroy@Base 2.0
+- rt_btree_ops@Base 2.0
+- rt_btree_remove@Base 2.0
+- rt_btree_vacate@Base 2.0
+  rw_destroy@Base 0.8.2
+  rw_enter@Base 0.8.2
+  rw_exit@Base 0.8.2
+@@ -1678,9 +1675,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  send_holes_without_birth_time@Base 0.8.2
+  seq_printf@Base 0.8.2
+  set_global_var@Base 0.8.2
+- (arch=amd64)sha1_block_data_order@Base 0.8.2
+- sha1_mod_fini@Base 0.8.2
+- sha1_mod_init@Base 0.8.2
+  sha2_mod_fini@Base 0.8.2
+  sha2_mod_init@Base 0.8.2
+  show_pool_stats@Base 0.8.2
+@@ -1864,6 +1858,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  spa_log_summary_add_flushed_metaslab@Base 2.0
+  spa_log_summary_decrement_blkcount@Base 2.0
+  spa_log_summary_decrement_mscount@Base 2.0
++ spa_log_summary_dirty_flushed_metaslab@Base 2.1.6
+  spa_lookup@Base 0.8.2
+  spa_lookup_by_guid@Base 0.8.2
+  spa_max_replication@Base 0.8.2
+@@ -1880,6 +1875,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  spa_mmp_history_set_skip@Base 0.8.2
+  spa_mode@Base 0.8.2
+  spa_mode_global@Base 0.8.2
++ spa_mode_readable_spacemaps@Base 2.1.5
+  spa_multihost@Base 0.8.2
+  spa_name@Base 0.8.2
+  spa_namespace_lock@Base 0.8.2
+@@ -2088,6 +2084,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  vdev_autotrim_restart@Base 0.8.2
+  vdev_autotrim_stop_all@Base 0.8.2
+  vdev_autotrim_stop_wait@Base 0.8.2
++ vdev_best_ashift@Base 2.1.6
+  vdev_cache_fini@Base 0.8.2
+  vdev_cache_init@Base 0.8.2
+  vdev_cache_purge@Base 0.8.2
+@@ -2377,7 +2374,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zap_lookup_uint64@Base 0.8.2
+  zap_match@Base 0.8.2
+  zap_maxcd@Base 0.8.2
+- zap_name_alloc@Base 0.8.2
++ zap_name_alloc_str@Base 2.1.9
+  zap_name_free@Base 0.8.2
+  zap_prefetch@Base 0.8.2
+  zap_prefetch_uint64@Base 0.8.2
+@@ -2394,6 +2391,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zap_value_search@Base 0.8.2
+  zbookmark_compare@Base 0.8.2
+  zbookmark_subtree_completed@Base 0.8.2
++ zbookmark_subtree_tbd@Base 2.1.6
+  zcp_argerror@Base 0.8.2
+  zcp_cleanup@Base 0.8.2
+  zcp_dataset_hold@Base 0.8.2
+@@ -2423,7 +2421,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zfetch_max_distance@Base 0.8.2
+  zfetch_max_idistance@Base 0.8.2
+  zfetch_max_streams@Base 0.8.2
+- zfetch_min_sec_reap@Base 0.8.2
+  zfetch_sums@Base 2.1
+  zfs_ERR_getErrorString@Base 2.0
+  zfs_FSE_NCountWriteBound@Base 2.0
+@@ -2459,6 +2456,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zfs_HIST_countFast_wksp@Base 2.0
+  zfs_HIST_count_simple@Base 2.0
+  zfs_HIST_count_wksp@Base 2.0
++ zfs_HIST_isError@Base 2.1.5
+  zfs_HUF_buildCTable@Base 2.0
+  zfs_HUF_buildCTable_wksp@Base 2.0
+  zfs_HUF_compress1X@Base 2.0
+@@ -2789,6 +2787,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zfs_btree_add_idx@Base 2.0
+  zfs_btree_clear@Base 2.0
+  zfs_btree_create@Base 2.0
++ zfs_btree_create_custom@Base 2.1.9
+  zfs_btree_destroy@Base 2.0
+  zfs_btree_destroy_nodes@Base 2.0
+  zfs_btree_find@Base 2.0
+@@ -3068,7 +3067,6 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zfs_trim_txg_batch@Base 0.8.2
+  zfs_txg_history@Base 0.8.2
+  zfs_txg_timeout@Base 0.8.2
+- zfs_unflushed_log_block_max@Base 2.0
+  zfs_unflushed_log_block_min@Base 2.0
+  zfs_unflushed_log_block_pct@Base 2.0
+  zfs_unflushed_max_mem_amt@Base 2.0
+@@ -3117,6 +3115,7 @@ libzpool.so.5 libzpool5linux #MINVER#
+  zfs_vdev_trim_max_active@Base 0.8.2
+  zfs_vdev_trim_min_active@Base 0.8.2
+  zfs_vdev_write_gap_limit@Base 0.8.2
++ zfs_wrlog_data_max@Base 2.1.6
+  zfs_zil_clean_taskq_maxalloc@Base 0.8.2
+  zfs_zil_clean_taskq_minalloc@Base 0.8.2
+  zfs_zil_clean_taskq_nthr_pct@Base 0.8.2
+diff --git a/patches/0004-Increase-default-zfs_scan_vdev_limit-to-16MB.patch b/patches/0004-Increase-default-zfs_scan_vdev_limit-to-16MB.patch
+new file mode 100644
+index 0000000..313da80
+--- /dev/null
++++ b/patches/0004-Increase-default-zfs_scan_vdev_limit-to-16MB.patch
+@@ -0,0 +1,117 @@
++From c0aea7cf4e86fc02db8046fbb3bca21a918053a2 Mon Sep 17 00:00:00 2001
++From: Brian Behlendorf <behlendorf1@llnl.gov>
++Date: Tue, 24 Jan 2023 14:05:45 -0800
++Subject: [PATCH] Increase default zfs_scan_vdev_limit to 16MB
++
++For HDD based pools the default zfs_scan_vdev_limit of 4M
++per-vdev can significantly limit the maximum scrub performance.
++Increasing the default to 16M can double the scrub speed from
++80 MB/s per disk to 160 MB/s per disk.
++
++This does increase the memory footprint during scrub/resilver
++but given the performance win this is a reasonable trade off.
++Memory usage is capped at 1/4 of arc_c_max.  Note that number
++of outstanding I/Os has not changed and is still limited by
++zfs_vdev_scrub_max_active.
++
++Reviewed-by: Akash B <akash-b@hpe.com>
++Reviewed-by: Tony Nguyen <tony.nguyen@delphix.com>
++Reviewed-by: Alexander Motin <mav@FreeBSD.org>
++Updated-by: Aron Xu <aron@debian.org>
++Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
++Closes #14428
++---
++ man/man4/zfs.4        |  2 +-
++ module/zfs/dsl_scan.c | 28 ++++++++++++++++------------
++ 2 files changed, 17 insertions(+), 13 deletions(-)
++
++Index: zfs/module/zfs/dsl_scan.c
++===================================================================
++--- zfs.orig/module/zfs/dsl_scan.c
+++++ zfs/module/zfs/dsl_scan.c
++@@ -37,6 +37,7 @@
++ #include <sys/dmu_tx.h>
++ #include <sys/dmu_objset.h>
++ #include <sys/arc.h>
+++#include <sys/arc_impl.h>
++ #include <sys/zap.h>
++ #include <sys/zio.h>
++ #include <sys/zfs_context.h>
++@@ -126,7 +127,7 @@ static boolean_t scan_ds_queue_contains(
++ static void scan_ds_queue_insert(dsl_scan_t *scn, uint64_t dsobj, uint64_t txg);
++ static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
++ static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
++-static uint64_t dsl_scan_count_data_disks(vdev_t *vd);
+++static uint64_t dsl_scan_count_data_disks(spa_t *spa);
++ 
++ extern int zfs_vdev_async_write_active_min_dirty_percent;
++ static int zfs_scan_blkstats = 0;
++@@ -147,7 +148,7 @@ int zfs_scan_strict_mem_lim = B_FALSE;
++  * overload the drives with I/O, since that is protected by
++  * zfs_vdev_scrub_max_active.
++  */
++-unsigned long zfs_scan_vdev_limit = 4 << 20;
+++unsigned long zfs_scan_vdev_limit = 16 << 20;
++ 
++ int zfs_scan_issue_strategy = 0;
++ int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
++@@ -450,11 +451,12 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t t
++ 
++ 	/*
++ 	 * Calculate the max number of in-flight bytes for pool-wide
++-	 * scanning operations (minimum 1MB). Limits for the issuing
++-	 * phase are done per top-level vdev and are handled separately.
+++	 * scanning operations (minimum 1MB, maximum 1/4 of arc_c_max).
+++	 * Limits for the issuing phase are done per top-level vdev and
+++	 * are handled separately.
++ 	 */
++-	scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
++-	    dsl_scan_count_data_disks(spa->spa_root_vdev), 1ULL << 20);
+++	scn->scn_maxinflight_bytes = MIN(arc_c_max / 4, MAX(1ULL << 20,
+++	    zfs_scan_vdev_limit * dsl_scan_count_data_disks(spa)));
++ 
++ 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
++ 	    offsetof(scan_ds_t, sds_node));
++@@ -2782,8 +2784,9 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t
++ }
++ 
++ static uint64_t
++-dsl_scan_count_data_disks(vdev_t *rvd)
+++dsl_scan_count_data_disks(spa_t *spa)
++ {
+++	vdev_t *rvd = spa->spa_root_vdev;
++ 	uint64_t i, leaves = 0;
++ 
++ 	for (i = 0; i < rvd->vdev_children; i++) {
++@@ -3678,12 +3681,13 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *
++ 		taskqid_t prefetch_tqid;
++ 
++ 		/*
++-		 * Recalculate the max number of in-flight bytes for pool-wide
++-		 * scanning operations (minimum 1MB). Limits for the issuing
++-		 * phase are done per top-level vdev and are handled separately.
+++		 * Calculate the max number of in-flight bytes for pool-wide
+++		 * scanning operations (minimum 1MB, maximum 1/4 of arc_c_max).
+++		 * Limits for the issuing phase are done per top-level vdev and
+++		 * are handled separately.
++ 		 */
++-		scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
++-		    dsl_scan_count_data_disks(spa->spa_root_vdev), 1ULL << 20);
+++		scn->scn_maxinflight_bytes = MIN(arc_c_max / 4, MAX(1ULL << 20,
+++		    zfs_scan_vdev_limit * dsl_scan_count_data_disks(spa)));
++ 
++ 		if (scnp->scn_ddt_bookmark.ddb_class <=
++ 		    scnp->scn_ddt_class_max) {
++Index: zfs/man/man4/zfs.4
++===================================================================
++--- zfs.orig/man/man4/zfs.4
+++++ zfs/man/man4/zfs.4
++@@ -1833,7 +1833,7 @@ When disabled, the memory limit may be e
++ Freezes a scrub/resilver in progress without actually pausing it.
++ Intended for testing/debugging.
++ .
++-.It Sy zfs_scan_vdev_limit Ns = Ns Sy 4194304 Ns B Po 4MB Pc Pq int
+++.It Sy zfs_scan_vdev_limit Ns = Ns Sy 4194304 Ns B Po 16MB Pc Pq int
++ Maximum amount of data that can be concurrently issued at once for scrubs and
++ resilvers per leaf device, given in bytes.
++ .
+diff --git a/patches/0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch b/patches/0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch
+new file mode 100644
+index 0000000..ea23a42
+--- /dev/null
++++ b/patches/0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch
+@@ -0,0 +1,107 @@
++From 973934b965268b5333564dbdf4e76b34cc7e7b6f Mon Sep 17 00:00:00 2001
++From: Brian Behlendorf <behlendorf1@llnl.gov>
++Date: Tue, 24 Jan 2023 15:23:32 -0800
++Subject: [PATCH] Increase default zfs_rebuild_vdev_limit to 64MB
++
++When testing distributed rebuild performance with more capable
++hardware it was observed than increasing the zfs_rebuild_vdev_limit
++to 64M reduced the rebuild time by 17%.  Beyond 64MB there was
++some improvement (~2%) but it was not significant when weighed
++against the increased memory usage. Memory usage is capped at 1/4
++of arc_c_max.
++
++Additionally, vr_bytes_inflight_max has been moved so it's updated
++per-metaslab to allow the size to be adjust while a rebuild is
++running.
++
++Reviewed-by: Akash B <akash-b@hpe.com>
++Reviewed-by: Tony Nguyen <tony.nguyen@delphix.com>
++Reviewed-by: Alexander Motin <mav@FreeBSD.org>
++Updated-by: Aron Xu <aron@debian.org>
++Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
++Closes #14428
++---
++ man/man4/zfs.4            |  2 +-
++ module/zfs/vdev_rebuild.c | 27 ++++++++++++++++++---------
++ 2 files changed, 19 insertions(+), 10 deletions(-)
++
++Index: zfs/man/man4/zfs.4
++===================================================================
++--- zfs.orig/man/man4/zfs.4
+++++ zfs/man/man4/zfs.4
++@@ -1706,7 +1706,7 @@ completes in order to verify the checksu
++ resilvered.
++ This is enabled by default and strongly recommended.
++ .
++-.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32MB Pc Pq ulong
+++.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 64MB Pc Pq ulong
++ Maximum amount of I/O that can be concurrently issued for a sequential
++ resilver per leaf device, given in bytes.
++ .
++Index: zfs/module/zfs/vdev_rebuild.c
++===================================================================
++--- zfs.orig/module/zfs/vdev_rebuild.c
+++++ zfs/module/zfs/vdev_rebuild.c
++@@ -34,6 +34,7 @@
++ #include <sys/zio.h>
++ #include <sys/dmu_tx.h>
++ #include <sys/arc.h>
+++#include <sys/arc_impl.h>
++ #include <sys/zap.h>
++ 
++ /*
++@@ -116,13 +117,12 @@ unsigned long zfs_rebuild_max_segment =
++  * segment size is also large (zfs_rebuild_max_segment=1M).  This helps keep
++  * the queue depth short.
++  *
++- * 32MB was selected as the default value to achieve good performance with
++- * a large 90-drive dRAID HDD configuration (draid2:8d:90c:2s). A sequential
++- * rebuild was unable to saturate all of the drives using smaller values.
++- * With a value of 32MB the sequential resilver write rate was measured at
++- * 800MB/s sustained while rebuilding to a distributed spare.
+++ * 64MB was observed to deliver the best performance and set as the default.             
+++ * Testing was performed with a 106-drive dRAID HDD pool (draid2:11d:106c)               
+++ * and a rebuild rate of 1.2GB/s was measured to the distribute spare.                   
+++ * Smaller values were unable to fully saturate the available pool I/O.
++  */
++-unsigned long zfs_rebuild_vdev_limit = 32 << 20;
+++unsigned long zfs_rebuild_vdev_limit = 64 << 20;
++ 
++ /*
++  * Automatically start a pool scrub when the last active sequential resilver
++@@ -754,6 +754,7 @@ vdev_rebuild_thread(void *arg)
++ {
++ 	vdev_t *vd = arg;
++ 	spa_t *spa = vd->vdev_spa;
+++	vdev_t *rvd = spa->spa_root_vdev;
++ 	int error = 0;
++ 
++ 	/*
++@@ -786,9 +787,6 @@ vdev_rebuild_thread(void *arg)
++ 	vr->vr_pass_bytes_scanned = 0;
++ 	vr->vr_pass_bytes_issued = 0;
++ 
++-	vr->vr_bytes_inflight_max = MAX(1ULL << 20,
++-	    zfs_rebuild_vdev_limit * vd->vdev_children);
++-
++ 	uint64_t update_est_time = gethrtime();
++ 	vdev_rebuild_update_bytes_est(vd, 0);
++ 
++@@ -805,6 +803,17 @@ vdev_rebuild_thread(void *arg)
++ 		vr->vr_scan_msp = msp;
++ 
++ 		/*
+++		 * Calculate the max number of in-flight bytes for top-level
+++		 * vdev scanning operations (minimum 1MB, maximum 1/4 of
+++		 * arc_c_max shared by all top-level vdevs).  Limits for the
+++		 * issuing phase are done per top-level vdev and are handled
+++		 * separately.
+++		 */
+++		uint64_t limit = (arc_c_max / 4) / MAX(rvd->vdev_children, 1);
+++		vr->vr_bytes_inflight_max = MIN(limit, MAX(1ULL << 20,
+++		    zfs_rebuild_vdev_limit * vd->vdev_children));
+++
+++		/*
++ 		 * Removal of vdevs from the vdev tree may eliminate the need
++ 		 * for the rebuild, in which case it should be canceled.  The
++ 		 * vdev_rebuild_cancel_wanted flag is set until the sync task
+diff --git a/patches/0006-rootdelay-on-zfs-should-be-adaptive.patch b/patches/0006-rootdelay-on-zfs-should-be-adaptive.patch
+new file mode 100644
+index 0000000..bc3df3f
+--- /dev/null
++++ b/patches/0006-rootdelay-on-zfs-should-be-adaptive.patch
+@@ -0,0 +1,95 @@
++From f18e083bf8ce0c0d1997002f9986122be6d4ebe8 Mon Sep 17 00:00:00 2001
++From: George Wilson <george.wilson@delphix.com>
++Date: Thu, 2 Feb 2023 18:11:35 -0500
++Subject: [PATCH] rootdelay on zfs should be adaptive
++
++The 'rootdelay' boot option currently pauses the boot for a specified
++amount of time. The original intent was to ensure that slower
++configurations would have ample time to enumerate the devices to make
++importing the root pool successful. This, however, causes unnecessary
++boot delay for environments like Azure which set this parameter by
++default.
++
++This commit changes the initramfs logic to pause until it can
++successfully load the 'zfs' module. The timeout specified by
++'rootdelay' now becomes the maximum amount of time that initramfs will
++wait before failing the boot.
++
++Reviewed-by: Brian Behlendorf <behlendorf1@llnl.gov>
++Reviewed-by: Prakash Surya <prakash.surya@delphix.com>
++Signed-off-by: George Wilson <gwilson@delphix.com>
++Closes #14430
++---
++ contrib/initramfs/scripts/zfs | 54 +++++++++++++++++++++++------------
++ 1 file changed, 35 insertions(+), 19 deletions(-)
++
++Index: zfs/contrib/initramfs/scripts/zfs
++===================================================================
++--- zfs.orig/contrib/initramfs/scripts/zfs
+++++ zfs/contrib/initramfs/scripts/zfs
++@@ -270,30 +270,46 @@ import_pool()
++ # with more logging etc.
++ load_module_initrd()
++ {
++-	[ -n "$ROOTDELAY" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP="$ROOTDELAY"
+++	ZFS_INITRD_PRE_MOUNTROOT_SLEEP=${ROOTDELAY:-0}
++ 
++-	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ] 2>/dev/null
++-	then
++-		if [ "$quiet" != "y" ]; then
++-			zfs_log_begin_msg "Sleeping for" \
++-				"$ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
++-		fi
++-		sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
++-		[ "$quiet" != "y" ] && zfs_log_end_msg
+++	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
+++		[ "$quiet" != "y" ] && zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
++ 	fi
++ 
++-	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
++-	if command -v wait_for_udev > /dev/null 2>&1 ; then
++-		wait_for_udev 10
++-	elif command -v wait_for_dev > /dev/null 2>&1 ; then
++-		wait_for_dev
++-	fi
+++	START=$(/bin/date -u +%s)
+++	END=$((START+ZFS_INITRD_PRE_MOUNTROOT_SLEEP))
+++	while true; do
+++
+++		# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+++		if command -v wait_for_udev > /dev/null 2>&1 ; then
+++			wait_for_udev 10
+++		elif command -v wait_for_dev > /dev/null 2>&1 ; then
+++			wait_for_dev
+++		fi
++ 
++-	# zpool import refuse to import without a valid /proc/self/mounts
++-	[ ! -f /proc/self/mounts ] && mount proc /proc
+++		#
+++		# zpool import refuse to import without a valid
+++		# /proc/self/mounts
+++		#
+++		[ ! -f /proc/self/mounts ] && mount proc /proc
+++
+++		# Load the module
+++		if load_module "zfs"; then
+++			ret=0
+++			break
+++		else
+++			ret=1
+++		fi
+++
+++		[ "$(/bin/date -u +%s)" -gt "$END" ] && break
+++		sleep 1
+++
+++	done
+++	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
+++		[ "$quiet" != "y" ] && zfs_log_end_msg
+++	fi
++ 
++-	# Load the module
++-	load_module "zfs" || return 1
+++	[ "$ret" -ne 0 ] && return 1
++ 
++ 	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" -gt 0 ] 2>/dev/null
++ 	then
+diff --git a/patches/0009-zdb-zero-pad-checksum-output.patch b/patches/0009-zdb-zero-pad-checksum-output.patch
+new file mode 100644
+index 0000000..b5e1597
+--- /dev/null
++++ b/patches/0009-zdb-zero-pad-checksum-output.patch
+@@ -0,0 +1,40 @@
++From ac7648179c856750b719c7a9e0464466df390b26 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Rob=20N=20=E2=98=85?= <robn@despairlabs.com>
++Date: Wed, 8 Feb 2023 08:48:22 +1100
++Subject: [PATCH] zdb: zero-pad checksum output
++
++The leading zeroes are part of the checksum so we should show them.
++
++Reviewed-by: Richard Yao <richard.yao@alumni.stonybrook.edu>
++Reviewed-by: Brian Behlendorf <behlendorf1@llnl.gov>
++Signed-off-by: Rob Norris <robn@despairlabs.com>
++Closes #14464
++---
++ cmd/zdb/zdb.c | 7 +++++--
++ 1 file changed, 5 insertions(+), 2 deletions(-)
++
++Index: zfs/cmd/zdb/zdb.c
++===================================================================
++--- zfs.orig/cmd/zdb/zdb.c
+++++ zfs/cmd/zdb/zdb.c
++@@ -2305,7 +2305,8 @@ snprintf_blkptr_compact(char *blkbuf, si
++ 			(void) snprintf(blkbuf + strlen(blkbuf),
++ 			    buflen - strlen(blkbuf), " %s", "FREE");
++ 		(void) snprintf(blkbuf + strlen(blkbuf),
++-		    buflen - strlen(blkbuf), " cksum=%llx:%llx:%llx:%llx",
+++		    buflen - strlen(blkbuf),
+++		    " cksum=%016llx:%016llx:%016llx:%016llx",
++ 		    (u_longlong_t)bp->blk_cksum.zc_word[0],
++ 		    (u_longlong_t)bp->blk_cksum.zc_word[1],
++ 		    (u_longlong_t)bp->blk_cksum.zc_word[2],
++@@ -8213,7 +8214,9 @@ zdb_read_block(char *thing, spa_t *spa)
++ 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
++ 				ck_zio->io_bp = bp;
++ 				zio_checksum_compute(ck_zio, ck, pabd, lsize);
++-				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
+++				printf(
+++				    "%12s\t"
+++				    "cksum=%016llx:%016llx:%016llx:%016llx\n",
++ 				    zio_checksum_table[ck].ci_name,
++ 				    (u_longlong_t)bp->blk_cksum.zc_word[0],
++ 				    (u_longlong_t)bp->blk_cksum.zc_word[1],
+diff --git a/patches/0010-zdb-zero-pad-checksum-output-follow-up.patch b/patches/0010-zdb-zero-pad-checksum-output-follow-up.patch
+new file mode 100644
+index 0000000..4a8037d
+--- /dev/null
++++ b/patches/0010-zdb-zero-pad-checksum-output-follow-up.patch
+@@ -0,0 +1,34 @@
++From 57cfae4a2f04aaff10c45b3f7975e0fe3ef3e8b8 Mon Sep 17 00:00:00 2001
++From: Brian Behlendorf <behlendorf1@llnl.gov>
++Date: Wed, 15 Feb 2023 09:06:29 -0800
++Subject: [PATCH 01/13] zdb: zero-pad checksum output follow up
++
++Apply zero padding for checksums consistently.  The SNPRINTF_BLKPTR
++macro was not updated in commit ac7648179c8 which results in the
++`cli_root/zdb/zdb_checksum.ksh` test case reliably failing.
++
++Reviewed-by: Igor Kozhukhov <igor@dilos.org>
++Reviewed-by: Akash B <akash-b@hpe.com>
++Reviewed-by: Brian Atkinson <batkinson@lanl.gov>
++Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
++Closes #14497
++---
++ include/sys/spa.h | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/include/sys/spa.h b/include/sys/spa.h
++index 500eb3491..c9d03bf64 100644
++--- a/include/sys/spa.h
+++++ b/include/sys/spa.h
++@@ -678,7 +678,7 @@ typedef struct blkptr {
++ 		len += func(buf + len, size - len,			\
++ 		    "[L%llu %s] %s %s %s %s %s %s %s%c"			\
++ 		    "size=%llxL/%llxP birth=%lluL/%lluP fill=%llu%c"	\
++-		    "cksum=%llx:%llx:%llx:%llx",			\
+++		    "cksum=%016llx:%016llx:%016llx:%016llx",		\
++ 		    (u_longlong_t)BP_GET_LEVEL(bp),			\
++ 		    type,						\
++ 		    checksum,						\
++-- 
++2.39.2
++
+diff --git a/patches/1004-prefer-python3-tests.patch b/patches/1004-prefer-python3-tests.patch
+deleted file mode 100644
+index 3354664..0000000
+--- a/patches/1004-prefer-python3-tests.patch
++++ /dev/null
+@@ -1,44 +0,0 @@
+-Index: zfs-linux/tests/zfs-tests/tests/functional/cli_root/zfs_program/zfs_program_json.ksh
+-===================================================================
+---- zfs-linux.orig/tests/zfs-tests/tests/functional/cli_root/zfs_program/zfs_program_json.ksh
+-+++ zfs-linux/tests/zfs-tests/tests/functional/cli_root/zfs_program/zfs_program_json.ksh
+-@@ -100,10 +100,10 @@ typeset -a pos_cmds_out=(
+- # the same as the input and the --sort-keys option was added.  Detect when
+- # --sort-keys is supported and apply the option to ensure the expected order.
+- #
+--if python -m json.tool --sort-keys <<< "{}"; then
+--	JSON_TOOL_CMD="python -m json.tool --sort-keys"
+-+if python3 -m json.tool --sort-keys <<< "{}"; then
+-+	JSON_TOOL_CMD="python3 -m json.tool --sort-keys"
+- else
+--	JSON_TOOL_CMD="python -m json.tool"
+-+	JSON_TOOL_CMD="python3 -m json.tool"
+- fi
+- 
+- typeset -i cnt=0
+-Index: zfs-linux/tests/zfs-tests/tests/functional/rsend/send_encrypted_files.ksh
+-===================================================================
+---- zfs-linux.orig/tests/zfs-tests/tests/functional/rsend/send_encrypted_files.ksh
+-+++ zfs-linux/tests/zfs-tests/tests/functional/rsend/send_encrypted_files.ksh
+-@@ -87,7 +87,7 @@ log_must xattrtest -f 10 -x 3 -s 32768 -
+- # OpenZFS issue #7432
+- log_must zfs set compression=on xattr=sa $TESTPOOL/$TESTFS2
+- log_must touch /$TESTPOOL/$TESTFS2/attrs
+--log_must eval "python -c 'print \"a\" * 4096' | \
+-+log_must eval "python3 -c 'print \"a\" * 4096' | \
+- 	set_xattr_stdin bigval /$TESTPOOL/$TESTFS2/attrs"
+- log_must zfs set compression=off xattr=on $TESTPOOL/$TESTFS2
+- 
+-Index: zfs-linux/tests/zfs-tests/tests/functional/rsend/send_realloc_dnode_size.ksh
+-===================================================================
+---- zfs-linux.orig/tests/zfs-tests/tests/functional/rsend/send_realloc_dnode_size.ksh
+-+++ zfs-linux/tests/zfs-tests/tests/functional/rsend/send_realloc_dnode_size.ksh
+-@@ -88,7 +88,7 @@ log_must zfs snapshot $POOL/fs@c
+- # 4. Create an empty file and add xattrs to it to exercise reclaiming a
+- #    dnode that requires more than 1 slot for its bonus buffer (Zol #7433)
+- log_must zfs set compression=on xattr=sa $POOL/fs
+--log_must eval "python -c 'print \"a\" * 512' |
+-+log_must eval "python3 -c 'print \"a\" * 512' |
+-     set_xattr_stdin bigval /$POOL/fs/attrs"
+- log_must zfs snapshot $POOL/fs@d
+- 
+diff --git a/patches/1005-enable-zed.patch b/patches/1005-enable-zed.patch
+index 8420657..6f85681 100644
+--- a/patches/1005-enable-zed.patch
++++ b/patches/1005-enable-zed.patch
+@@ -9,7 +9,7 @@ Index: zfs-linux/cmd/zed/zed.d/zed.rc
+ ===================================================================
+ --- zfs-linux.orig/cmd/zed/zed.d/zed.rc
+ +++ zfs-linux/cmd/zed/zed.d/zed.rc
+-@@ -41,7 +41,7 @@ ZED_EMAIL_ADDR="root"
++@@ -42,7 +42,7 @@ ZED_EMAIL_ADDR="root"
+  ##
+  # Minimum number of seconds between notifications for a similar event.
+  #
+diff --git a/patches/1006-zed-service-bindir.patch b/patches/1006-zed-service-bindir.patch
+index 18118b3..42805f6 100644
+--- a/patches/1006-zed-service-bindir.patch
++++ b/patches/1006-zed-service-bindir.patch
+@@ -19,7 +19,7 @@ Index: zfs-linux/etc/systemd/system/zfs-zed.service.in
+  [Service]
+ -ExecStart=@sbindir@/zed -F
+ +ExecStart=/usr/sbin/zed -F
+- Restart=on-abort
++ Restart=always
+  
+  [Install]
+ Index: zfs-linux/etc/zfs/zfs-functions.in
+diff --git a/patches/2100-zfs-load-module.patch b/patches/2100-zfs-load-module.patch
+index 7bd16bb..58504d4 100644
+--- a/patches/2100-zfs-load-module.patch
++++ b/patches/2100-zfs-load-module.patch
+@@ -1,10 +1,10 @@
+ Description: explicitly load the ZFS module via systemd service
+ Author: Ubuntu developers
+ Forward: no need
+-Index: zfs-linux/etc/systemd/system/Makefile.am
++Index: zfs/etc/systemd/system/Makefile.am
+ ===================================================================
+---- zfs-linux.orig/etc/systemd/system/Makefile.am
+-+++ zfs-linux/etc/systemd/system/Makefile.am
++--- zfs.orig/etc/systemd/system/Makefile.am
+++++ zfs/etc/systemd/system/Makefile.am
+ @@ -4,6 +4,7 @@ systemdpreset_DATA = \
+  	50-zfs.preset
+  
+@@ -13,10 +13,10 @@ Index: zfs-linux/etc/systemd/system/Makefile.am
+  	zfs-zed.service \
+  	zfs-import-cache.service \
+  	zfs-import-scan.service \
+-Index: zfs-linux/etc/systemd/system/zfs-import-cache.service.in
++Index: zfs/etc/systemd/system/zfs-import-cache.service.in
+ ===================================================================
+---- zfs-linux.orig/etc/systemd/system/zfs-import-cache.service.in
+-+++ zfs-linux/etc/systemd/system/zfs-import-cache.service.in
++--- zfs.orig/etc/systemd/system/zfs-import-cache.service.in
+++++ zfs/etc/systemd/system/zfs-import-cache.service.in
+ @@ -3,7 +3,9 @@ Description=Import ZFS pools by cache fi
+  Documentation=man:zpool(8)
+  DefaultDependencies=no
+@@ -25,12 +25,12 @@ Index: zfs-linux/etc/systemd/system/zfs-import-cache.service.in
+  After=systemd-udev-settle.service
+ +After=zfs-load-module.service
+  After=cryptsetup.target
+- After=multipathd.target
++ After=multipathd.service
+  After=systemd-remount-fs.service
+-Index: zfs-linux/etc/systemd/system/zfs-import-scan.service.in
++Index: zfs/etc/systemd/system/zfs-import-scan.service.in
+ ===================================================================
+---- zfs-linux.orig/etc/systemd/system/zfs-import-scan.service.in
+-+++ zfs-linux/etc/systemd/system/zfs-import-scan.service.in
++--- zfs.orig/etc/systemd/system/zfs-import-scan.service.in
+++++ zfs/etc/systemd/system/zfs-import-scan.service.in
+ @@ -3,7 +3,9 @@ Description=Import ZFS pools by device s
+  Documentation=man:zpool(8)
+  DefaultDependencies=no
+@@ -39,12 +39,12 @@ Index: zfs-linux/etc/systemd/system/zfs-import-scan.service.in
+  After=systemd-udev-settle.service
+ +Requires=zfs-load-module.service
+  After=cryptsetup.target
+- After=multipathd.target
++ After=multipathd.service
+  Before=zfs-import.target
+-Index: zfs-linux/etc/systemd/system/zfs-load-module.service.in
++Index: zfs/etc/systemd/system/zfs-load-module.service.in
+ ===================================================================
+ --- /dev/null
+-+++ zfs-linux/etc/systemd/system/zfs-load-module.service.in
+++++ zfs/etc/systemd/system/zfs-load-module.service.in
+ @@ -0,0 +1,17 @@
+ +[Unit]
+ +Description=Install ZFS kernel module
+@@ -63,25 +63,26 @@ Index: zfs-linux/etc/systemd/system/zfs-load-module.service.in
+ +[Install]
+ +WantedBy=zfs-mount.service
+ +WantedBy=zfs.target
+-Index: zfs-linux/etc/systemd/system/50-zfs.preset.in
++Index: zfs/etc/systemd/system/50-zfs.preset.in
+ ===================================================================
+---- zfs-linux.orig/etc/systemd/system/50-zfs.preset.in
+-+++ zfs-linux/etc/systemd/system/50-zfs.preset.in
++--- zfs.orig/etc/systemd/system/50-zfs.preset.in
+++++ zfs/etc/systemd/system/50-zfs.preset.in
+ @@ -7,3 +7,4 @@ enable zfs-share.service
+  enable zfs-zed.service
+  enable zfs-volume-wait.service
+  enable zfs.target
+ +enable zfs-load-module.service
+-Index: zfs-linux/contrib/dracut/90zfs/module-setup.sh.in
++Index: zfs/contrib/dracut/90zfs/module-setup.sh.in
+ ===================================================================
+---- zfs-linux.orig/contrib/dracut/90zfs/module-setup.sh.in
+-+++ zfs-linux/contrib/dracut/90zfs/module-setup.sh.in
+-@@ -104,7 +104,7 @@ install() {
++--- zfs.orig/contrib/dracut/90zfs/module-setup.sh.in
+++++ zfs/contrib/dracut/90zfs/module-setup.sh.in
++@@ -86,7 +86,8 @@ install() {
++ 
++ 		for _service in \
++ 			"zfs-import-scan.service" \
++-			"zfs-import-cache.service"; do
+++			"zfs-import-cache.service" \
+++            "zfs-load-module.service"; do
++ 			inst_simple "${systemdsystemunitdir}/${_service}"
++ 			systemctl -q --root "${initdir}" add-wants zfs-import.target "${_service}"
+  
+- 	if dracut_module_included "systemd"; then
+- 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
+--		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
+-+		for _service in "zfs-import-scan.service" "zfs-import-cache.service" "zfs-load-module.service" ; do
+- 			dracut_install "@systemdunitdir@/$_service"
+- 			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service" ]; then
+- 				ln -sf ../$_service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"
+diff --git a/patches/4620-zfs-vol-wait-fix-locked-encrypted-vols.patch b/patches/4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
+index db947ad..20cd7bd 100644
+--- a/patches/4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
++++ b/patches/4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
+@@ -28,7 +28,7 @@ Index: zfs-linux/cmd/zvol_wait/zvol_wait
+  list_zvols() {
+  	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
+  	zfs list -t volume -H -o \
+-@@ -72,7 +80,7 @@ while [ "$outer_loop" -lt 20 ]; do
++@@ -74,7 +82,7 @@ while [ "$outer_loop" -lt 20 ]; do
+  	while [ "$inner_loop" -lt 30 ]; do
+  		inner_loop=$((inner_loop + 1))
+  
+diff --git a/patches/4900-ppc-get-user-workaround.patch b/patches/4900-ppc-get-user-workaround.patch
+deleted file mode 100644
+index 65bcf90..0000000
+--- a/patches/4900-ppc-get-user-workaround.patch
++++ /dev/null
+@@ -1,60 +0,0 @@
+-Description: PPC get_user workaround
+-  Linux 5.12 PPC 5.12 get_user() and __copy_from_user_inatomic()
+-  inline helpers very indirecly include a reference to the GPL'd
+-  array mmu_feature_keys[] and fails to build. Workaround this by
+-  using copy_from_user() and throwing EFAULT for any calls to 
+-  __copy_from_user_inatomic(). This is a workaround until a fix
+-  for Linux commit 7613f5a66becfd0e43a0f34de8518695888f5458
+-  "powerpc/64s/kuap: Use mmu_has_feature()" is fully addressed.
+-Author: Colin Ian King <colin.king@canonical.com>
+-Origin: ubuntu
+-Forwarded: no 
+-Last-Update: 2021-04-28
+-
+-Index: zfs-linux/module/os/linux/zfs/zfs_uio.c
+-===================================================================
+---- zfs-linux.orig/module/os/linux/zfs/zfs_uio.c
+-+++ zfs-linux/module/os/linux/zfs/zfs_uio.c
+-@@ -47,6 +47,7 @@
+- #include <sys/strings.h>
+- #include <linux/kmap_compat.h>
+- #include <linux/uaccess.h>
+-+#include <linux/printk.h>
+- 
+- /*
+-  * Move "n" bytes at byte address "p"; "rw" indicates the direction
+-@@ -79,11 +80,16 @@ zfs_uiomove_iov(void *p, size_t n, zfs_u
+- 					    (iov->iov_base + skip), cnt)) {
+- 						return (EFAULT);
+- 					}
+-+#if defined(__PPC64__)
+-+					printk_ratelimited(KERN_ERR "uiomove_iov(): __copy_from_user_inatomic() not available to ZFS\n");
+-+					return (EFAULT);
+-+#else
+- 					pagefault_disable();
+- 					b_left =
+- 					    __copy_from_user_inatomic(p,
+- 					    (iov->iov_base + skip), cnt);
+- 					pagefault_enable();
+-+#endif
+- 				} else {
+- 					b_left =
+- 					    copy_from_user(p,
+-@@ -248,7 +254,7 @@ zfs_uio_prefaultpages(ssize_t n, zfs_uio
+- 			/* touch each page in this segment. */
+- 			p = iov->iov_base + skip;
+- 			while (cnt) {
+--				if (get_user(tmp, (uint8_t *)p))
+-+				if (copy_from_user(&tmp, p, 1))
+- 					return (EFAULT);
+- 				ulong_t incr = MIN(cnt, PAGESIZE);
+- 				p += incr;
+-@@ -256,7 +262,7 @@ zfs_uio_prefaultpages(ssize_t n, zfs_uio
+- 			}
+- 			/* touch the last byte in case it straddles a page. */
+- 			p--;
+--			if (get_user(tmp, (uint8_t *)p))
+-+			if (copy_from_user(&tmp, p, 1))
+- 				return (EFAULT);
+- 		}
+- 	}
+diff --git a/patches/4901-zvol_wait-Ignore-locked-zvols.patch b/patches/4901-zvol_wait-Ignore-locked-zvols.patch
+deleted file mode 100644
+index 5d4933b..0000000
+--- a/patches/4901-zvol_wait-Ignore-locked-zvols.patch
++++ /dev/null
+@@ -1,36 +0,0 @@
+-From 509f8ae5747a356b0eaeef998ce41ac79033c148 Mon Sep 17 00:00:00 2001
+-From: Richard Laager <rlaager@wiktel.com>
+-Date: Sat, 1 Aug 2020 12:32:10 -0500
+-Subject: [PATCH] zvol_wait: Ignore locked zvols
+-
+-Thanks: James Dingwall <james-launchpad@dingwall.me.uk>
+-Signed-off-by: Richard Laager <rlaager@wiktel.com>
+----
+- cmd/zvol_wait/zvol_wait | 9 ++++++---
+- 1 file changed, 6 insertions(+), 3 deletions(-)
+-
+-Index: zfs-linux/cmd/zvol_wait/zvol_wait
+-===================================================================
+---- zfs-linux.orig/cmd/zvol_wait/zvol_wait
+-+++ zfs-linux/cmd/zvol_wait/zvol_wait
+-@@ -36,15 +36,17 @@ filter_out_locked_zvols() {
+- list_zvols() {
+- 	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
+- 	zfs list -t volume -H -o \
+--	    name,volmode,receive_resume_token,redact_snaps |
+--	    while IFS="	" read -r name volmode token redacted; do # IFS=\t here!
+-+	    name,volmode,receive_resume_token,redact_snaps,keystatus |
+-+	    while IFS="	" read -r name volmode token redacted keystatus; do # IFS=\t here!
+- 
+- 		# /dev links are not created for zvols with volmode = "none"
+--		# or for redacted zvols.
+-+                # redacted zvols, or encrypted zvols for which the key has not
+-+                # been loaded.
+- 		[ "$volmode" = "none" ] && continue
+- 		[ "$volmode" = "default" ] && [ "$default_volmode" = "3" ] &&
+- 		    continue
+- 		[ "$redacted" = "-" ] || continue
+-+		[ "$keystatus" = "unavailable" ] && continue
+- 
+- 		# We also ignore partially received zvols if it is
+- 		# not an incremental receive, as those won't even have a block
+diff --git a/patches/cross-compile.patch b/patches/cross-compile.patch
+new file mode 100644
+index 0000000..19bf011
+--- /dev/null
++++ b/patches/cross-compile.patch
+@@ -0,0 +1,21 @@
++Description: Fix cross-compile of the dkms module.
++Author: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++
++
++Index: zfs-linux/scripts/dkms.mkconf
++===================================================================
++--- zfs-linux.orig/scripts/dkms.mkconf
+++++ zfs-linux/scripts/dkms.mkconf
++@@ -50,6 +50,12 @@ PRE_BUILD="configure
++     }
++   )
++   \$(
+++    [[ -n \"\${CROSS_COMPILE}\" ]] && \\
+++    {
+++      echo --host=\"\${CROSS_COMPILE%-}\"
+++    }
+++  )
+++  \$(
++     [[ -r \${PACKAGE_CONFIG} ]] \\
++     && source \${PACKAGE_CONFIG} \\
++     && shopt -q -s extglob \\
+diff --git a/patches/move-arcstat-1-to-8.patch b/patches/move-arcstat-1-to-8.patch
+index 4d843c7..7bcc69b 100644
+--- a/patches/move-arcstat-1-to-8.patch
++++ b/patches/move-arcstat-1-to-8.patch
+@@ -395,7 +395,7 @@ Index: zfs-linux/man/Makefile.am
+  	\
+  	man5/vdev_id.conf.5 \
+  	\
+-@@ -21,6 +20,7 @@ dist_man_MANS = \
++@@ -22,6 +21,7 @@ dist_man_MANS = \
+  	man7/zpoolconcepts.7 \
+  	man7/zpoolprops.7 \
+  	\
+@@ -407,7 +407,7 @@ Index: zfs-linux/man/Makefile.in
+ ===================================================================
+ --- zfs-linux.orig/man/Makefile.in
+ +++ zfs-linux/man/Makefile.in
+-@@ -648,7 +648,6 @@ dist_man_MANS = \
++@@ -660,7 +660,6 @@ dist_man_MANS = \
+  	man1/ztest.1 \
+  	man1/raidz_test.1 \
+  	man1/zvol_wait.1 \
+@@ -415,7 +415,7 @@ Index: zfs-linux/man/Makefile.in
+  	\
+  	man5/vdev_id.conf.5 \
+  	\
+-@@ -661,6 +660,7 @@ dist_man_MANS = \
++@@ -674,6 +673,7 @@ dist_man_MANS = \
+  	man7/zpoolconcepts.7 \
+  	man7/zpoolprops.7 \
+  	\
+diff --git a/patches/no-REMAKE_INITRD.patch b/patches/no-REMAKE_INITRD.patch
+deleted file mode 100644
+index 081741b..0000000
+--- a/patches/no-REMAKE_INITRD.patch
++++ /dev/null
+@@ -1,14 +0,0 @@
+-Description: REMAKE_INITRD is deprecated in dkms 3
+- dkms is very noisy about it ...
+-Author: Andreas Beckmann <anbe@debian.org>
+-
+---- a/scripts/dkms.mkconf
+-+++ b/scripts/dkms.mkconf
+-@@ -68,7 +68,6 @@ POST_BUILD="scripts/dkms.postbuild
+-   -t \${dkms_tree}
+- "
+- AUTOINSTALL="yes"
+--REMAKE_INITRD="no"
+- MAKE[0]="make"
+- STRIP[0]="\$(
+-   [[ -r \${PACKAGE_CONFIG} ]] \\
+diff --git a/patches/series b/patches/series
+index c9f3d4b..2c25555 100644
+--- a/patches/series
++++ b/patches/series
+@@ -1,26 +1,29 @@
+ #unapplied/init-debian-openrc-workaround.patch # OpenRC users can apply this locally
+-#1000-dont-symlink-zed-scripts.patch
+-#1001-Prevent-manual-builds-in-the-DKMS-source.patch
+-#1002-Check-for-META-and-DCH-consistency-in-autoconf.patch
+-#1003-relocate-zvol_wait.patch
+-#1004-prefer-python3-tests.patch
+-#1005-enable-zed.patch
+-#1006-zed-service-bindir.patch
+-#1007-dkms-pkgcfg.patch
+-#2100-zfs-load-module.patch
+-#3100-remove-libzfs-module-timeout.patch
+-#force-verbose-rules.patch
+-#4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
++1000-dont-symlink-zed-scripts.patch
++1001-Prevent-manual-builds-in-the-DKMS-source.patch
++1002-Check-for-META-and-DCH-consistency-in-autoconf.patch
++1003-relocate-zvol_wait.patch
++1005-enable-zed.patch
++1006-zed-service-bindir.patch
++1007-dkms-pkgcfg.patch
++2100-zfs-load-module.patch
++3100-remove-libzfs-module-timeout.patch
++force-verbose-rules.patch
++4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
+ #move-arcstat-1-to-8.patch
+-#4900-ppc-get-user-workaround.patch
+-#4901-zvol_wait-Ignore-locked-zvols.patch
+-#ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch
+-#ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch
++skip-on-PREEMPT_RT.patch
++zzstd-version-bump.patch
++cross-compile.patch
++#ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-serialise-han.patch
++#ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch
++#ubuntu/0003-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch
+ #ubuntu/4000-zsys-support.patch
+ #ubuntu/4100-disable-bpool-upgrade.patch
+ #ubuntu/zfs-mount-container-start.patch
+ #ubuntu/4510-silently-ignore-modprobe-failure.patch
+-#ubuntu/4701-enable-ARC-FILL-LOCKED-flag.patch
+ #ubuntu/4751-suppress-types.patch
+-#no-REMAKE_INITRD.patch
+-#skip-on-PREEMPT_RT.patch
++0004-Increase-default-zfs_scan_vdev_limit-to-16MB.patch
++0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch
++0006-rootdelay-on-zfs-should-be-adaptive.patch
++0009-zdb-zero-pad-checksum-output.patch
++0010-zdb-zero-pad-checksum-output-follow-up.patch
+diff --git a/patches/skip-on-PREEMPT_RT.patch b/patches/skip-on-PREEMPT_RT.patch
+index 156b8b1..a3a28d8 100644
+--- a/patches/skip-on-PREEMPT_RT.patch
++++ b/patches/skip-on-PREEMPT_RT.patch
+@@ -3,8 +3,10 @@ Author: Andreas Beckmann <anbe@debian.org>
+ Bug-Debian: https://bugs.debian.org/981212
+ Bug: https://github.com/openzfs/zfs/issues/11097
+ 
+---- a/scripts/dkms.mkconf
+-+++ b/scripts/dkms.mkconf
++Index: zfs-linux/scripts/dkms.mkconf
++===================================================================
++--- zfs-linux.orig/scripts/dkms.mkconf
+++++ zfs-linux/scripts/dkms.mkconf
+ @@ -25,6 +25,12 @@ PACKAGE_NAME="${pkgname}"
+  PACKAGE_VERSION="${pkgver}"
+  PACKAGE_CONFIG="${pkgcfg}"
+diff --git a/patches/ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-serialise-han.patch b/patches/ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-serialise-han.patch
+new file mode 100644
+index 0000000..421e349
+--- /dev/null
++++ b/patches/ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-serialise-han.patch
+@@ -0,0 +1,780 @@
++From 6e60b28bc979477ba8d48347dd556acc5296bb25 Mon Sep 17 00:00:00 2001
++From: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++Date: Tue, 19 Apr 2022 15:58:46 +0100
++Subject: [PATCH 1/3] Revert "etc/systemd/zfs-mount-generator: serialise,
++ handle keylocation=http[s]://"
++
++This reverts commit fe6f2651f55de3bf68ac4729386b5e85aa23a447.
++
++This is to continue support for ubuntu specific zsys patch that
++currently relies on the shell based implementation of the
++generator. See https://bugs.launchpad.net/bugs/1958142
++
++Signed-off-by: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++---
++ .../system-generators/zfs-mount-generator.c   | 437 +++++++++++-------
++ man/man8/zfs-mount-generator.8.in             |  19 +-
++ 2 files changed, 275 insertions(+), 181 deletions(-)
++
++diff --git a/etc/systemd/system-generators/zfs-mount-generator.c b/etc/systemd/system-generators/zfs-mount-generator.c
++index f4c6c26a0b..b806339deb 100644
++--- a/etc/systemd/system-generators/zfs-mount-generator.c
+++++ b/etc/systemd/system-generators/zfs-mount-generator.c
++@@ -27,6 +27,9 @@
++ #include <sys/types.h>
++ #include <sys/time.h>
++ #include <sys/stat.h>
+++#include <sys/wait.h>
+++#include <sys/mman.h>
+++#include <semaphore.h>
++ #include <stdbool.h>
++ #include <unistd.h>
++ #include <fcntl.h>
++@@ -41,16 +44,25 @@
++ #include <errno.h>
++ #include <libzfs.h>
++ 
++-/*
++- * For debugging only.
++- *
++- * Free statics with trivial life-times,
++- * but saved line filenames are replaced with a static string.
++- */
++-#define	FREE_STATICS false
++-
++-#define	nitems(arr) (sizeof (arr) / sizeof (*arr))
++ #define	STRCMP ((int(*)(const void *, const void *))&strcmp)
+++#define	PID_T_CMP ((int(*)(const void *, const void *))&pid_t_cmp)
+++
+++static int
+++pid_t_cmp(const pid_t *lhs, const pid_t *rhs)
+++{
+++	/*
+++	 * This is always valid, quoth sys_types.h(7posix):
+++	 * > blksize_t, pid_t, and ssize_t shall be signed integer types.
+++	 */
+++	return (*lhs - *rhs);
+++}
+++
+++#define	EXIT_ENOMEM() \
+++	do { \
+++		fprintf(stderr, PROGNAME "[%d]: " \
+++		    "not enough memory (L%d)!\n", getpid(), __LINE__); \
+++		_exit(1); \
+++	} while (0)
++ 
++ 
++ #define	PROGNAME "zfs-mount-generator"
++@@ -68,11 +80,20 @@
++ #define	URI_REGEX_S "^\\([A-Za-z][A-Za-z0-9+.\\-]*\\):\\/\\/\\(.*\\)$"
++ static regex_t uri_regex;
++ 
+++static char *argv0;
+++
++ static const char *destdir = "/tmp";
++ static int destdir_fd = -1;
++ 
++ static void *known_pools = NULL; /* tsearch() of C strings */
++-static void *noauto_files = NULL; /* tsearch() of C strings */
+++static struct {
+++	sem_t noauto_not_on_sem;
+++
+++	sem_t noauto_names_sem;
+++	size_t noauto_names_len;
+++	size_t noauto_names_max;
+++	char noauto_names[][NAME_MAX];
+++} *noauto_files;
++ 
++ 
++ static char *
++@@ -82,12 +103,8 @@ systemd_escape(const char *input, const char *prepend, const char *append)
++ 	size_t applen = strlen(append);
++ 	size_t prelen = strlen(prepend);
++ 	char *ret = malloc(4 * len + prelen + applen + 1);
++-	if (!ret) {
++-		fprintf(stderr, PROGNAME "[%d]: "
++-		    "out of memory to escape \"%s%s%s\"!\n",
++-		    getpid(), prepend, input, append);
++-		return (NULL);
++-	}
+++	if (!ret)
+++		EXIT_ENOMEM();
++ 
++ 	memcpy(ret, prepend, prelen);
++ 	char *out = ret + prelen;
++@@ -149,12 +166,8 @@ systemd_escape_path(char *input, const char *prepend, const char *append)
++ {
++ 	if (strcmp(input, "/") == 0) {
++ 		char *ret;
++-		if (asprintf(&ret, "%s-%s", prepend, append) == -1) {
++-			fprintf(stderr, PROGNAME "[%d]: "
++-			    "out of memory to escape \"%s%s%s\"!\n",
++-			    getpid(), prepend, input, append);
++-			ret = NULL;
++-		}
+++		if (asprintf(&ret, "%s-%s", prepend, append) == -1)
+++			EXIT_ENOMEM();
++ 		return (ret);
++ 	} else {
++ 		/*
++@@ -196,10 +209,6 @@ fopenat(int dirfd, const char *pathname, int flags,
++ static int
++ line_worker(char *line, const char *cachefile)
++ {
++-	int ret = 0;
++-	void *tofree_all[8];
++-	void **tofree = tofree_all;
++-
++ 	char *toktmp;
++ 	/* BEGIN CSTYLED */
++ 	const char *dataset                     = strtok_r(line, "\t", &toktmp);
++@@ -231,9 +240,11 @@ line_worker(char *line, const char *cachefile)
++ 	if (p_nbmand == NULL) {
++ 		fprintf(stderr, PROGNAME "[%d]: %s: not enough tokens!\n",
++ 		    getpid(), dataset);
++-		goto err;
+++		return (1);
++ 	}
++ 
+++	strncpy(argv0, dataset, strlen(argv0));
+++
++ 	/* Minimal pre-requisites to mount a ZFS dataset */
++ 	const char *after = "zfs-import.target";
++ 	const char *wants = "zfs-import.target";
++@@ -269,31 +280,28 @@ line_worker(char *line, const char *cachefile)
++ 
++ 
++ 	if (strcmp(p_encroot, "-") != 0) {
++-		char *keyloadunit = *(tofree++) =
+++		char *keyloadunit =
++ 		    systemd_escape(p_encroot, "zfs-load-key@", ".service");
++-		if (keyloadunit == NULL)
++-			goto err;
++ 
++ 		if (strcmp(dataset, p_encroot) == 0) {
++ 			const char *keymountdep = NULL;
++ 			bool is_prompt = false;
++-			bool need_network = false;
++ 
++ 			regmatch_t uri_matches[3];
++ 			if (regexec(&uri_regex, p_keyloc,
++-			    nitems(uri_matches), uri_matches, 0) == 0) {
++-				p_keyloc[uri_matches[1].rm_eo] = '\0';
+++			    sizeof (uri_matches) / sizeof (*uri_matches),
+++			    uri_matches, 0) == 0) {
++ 				p_keyloc[uri_matches[2].rm_eo] = '\0';
++-				const char *scheme =
++-				    &p_keyloc[uri_matches[1].rm_so];
++ 				const char *path =
++ 				    &p_keyloc[uri_matches[2].rm_so];
++ 
++-				if (strcmp(scheme, "https") == 0 ||
++-				    strcmp(scheme, "http") == 0)
++-					need_network = true;
++-				else
++-					keymountdep = path;
+++				/*
+++				 * Assumes all URI keylocations need
+++				 * the mount for their path;
+++				 * http://, for example, wouldn't
+++				 * (but it'd need network-online.target et al.)
+++				 */
+++				keymountdep = path;
++ 			} else {
++ 				if (strcmp(p_keyloc, "prompt") != 0)
++ 					fprintf(stderr, PROGNAME "[%d]: %s: "
++@@ -313,7 +321,7 @@ line_worker(char *line, const char *cachefile)
++ 				    "couldn't open %s under %s: %s\n",
++ 				    getpid(), dataset, keyloadunit, destdir,
++ 				    strerror(errno));
++-				goto err;
+++				return (1);
++ 			}
++ 
++ 			fprintf(keyloadunit_f,
++@@ -327,22 +335,20 @@ line_worker(char *line, const char *cachefile)
++ 			    "After=%s\n",
++ 			    dataset, cachefile, wants, after);
++ 
++-			if (need_network)
++-				fprintf(keyloadunit_f,
++-				    "Wants=network-online.target\n"
++-				    "After=network-online.target\n");
++-
++ 			if (p_systemd_requires)
++ 				fprintf(keyloadunit_f,
++ 				    "Requires=%s\n", p_systemd_requires);
++ 
++-			if (p_systemd_requiresmountsfor)
++-				fprintf(keyloadunit_f,
++-				    "RequiresMountsFor=%s\n",
++-				    p_systemd_requiresmountsfor);
++-			if (keymountdep)
++-				fprintf(keyloadunit_f,
++-				    "RequiresMountsFor='%s'\n", keymountdep);
+++			if (p_systemd_requiresmountsfor || keymountdep) {
+++				fprintf(keyloadunit_f, "RequiresMountsFor=");
+++				if (p_systemd_requiresmountsfor)
+++					fprintf(keyloadunit_f,
+++					    "%s ", p_systemd_requiresmountsfor);
+++				if (keymountdep)
+++					fprintf(keyloadunit_f,
+++					    "'%s'", keymountdep);
+++				fprintf(keyloadunit_f, "\n");
+++			}
++ 
++ 			/* BEGIN CSTYLED */
++ 			fprintf(keyloadunit_f,
++@@ -387,13 +393,9 @@ line_worker(char *line, const char *cachefile)
++ 		if (after[0] == '\0')
++ 			after = keyloadunit;
++ 		else if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1)
++-			after = *(tofree++) = toktmp;
++-		else {
++-			fprintf(stderr, PROGNAME "[%d]: %s: "
++-			    "out of memory to generate after=\"%s %s\"!\n",
++-			    getpid(), dataset, after, keyloadunit);
++-			goto err;
++-		}
+++			after = toktmp;
+++		else
+++			EXIT_ENOMEM();
++ 	}
++ 
++ 
++@@ -402,12 +404,12 @@ line_worker(char *line, const char *cachefile)
++ 	    strcmp(p_systemd_ignore, "off") == 0) {
++ 		/* ok */
++ 	} else if (strcmp(p_systemd_ignore, "on") == 0)
++-		goto end;
+++		return (0);
++ 	else {
++ 		fprintf(stderr, PROGNAME "[%d]: %s: "
++ 		    "invalid org.openzfs.systemd:ignore=%s\n",
++ 		    getpid(), dataset, p_systemd_ignore);
++-		goto err;
+++		return (1);
++ 	}
++ 
++ 	/* Check for canmount */
++@@ -416,21 +418,21 @@ line_worker(char *line, const char *cachefile)
++ 	} else if (strcmp(p_canmount, "noauto") == 0)
++ 		noauto = true;
++ 	else if (strcmp(p_canmount, "off") == 0)
++-		goto end;
+++		return (0);
++ 	else {
++ 		fprintf(stderr, PROGNAME "[%d]: %s: invalid canmount=%s\n",
++ 		    getpid(), dataset, p_canmount);
++-		goto err;
+++		return (1);
++ 	}
++ 
++ 	/* Check for legacy and blank mountpoints */
++ 	if (strcmp(p_mountpoint, "legacy") == 0 ||
++ 	    strcmp(p_mountpoint, "none") == 0)
++-		goto end;
+++		return (0);
++ 	else if (p_mountpoint[0] != '/') {
++ 		fprintf(stderr, PROGNAME "[%d]: %s: invalid mountpoint=%s\n",
++ 		    getpid(), dataset, p_mountpoint);
++-		goto err;
+++		return (1);
++ 	}
++ 
++ 	/* Escape the mountpoint per systemd policy */
++@@ -440,7 +442,7 @@ line_worker(char *line, const char *cachefile)
++ 		fprintf(stderr,
++ 		    PROGNAME "[%d]: %s: abnormal simplified mountpoint: %s\n",
++ 		    getpid(), dataset, p_mountpoint);
++-		goto err;
+++		return (1);
++ 	}
++ 
++ 
++@@ -550,7 +552,8 @@ line_worker(char *line, const char *cachefile)
++ 	 * 	files if we're sure they were created by us. (see 5.)
++ 	 * 2.	We handle files differently based on canmount.
++ 	 * 	Units with canmount=on always have precedence over noauto.
++-	 * 	This is enforced by processing these units before all others.
+++	 * 	This is enforced by the noauto_not_on_sem semaphore,
+++	 * 	which is only unlocked when the last canmount=on process exits.
++ 	 * 	It is important to use p_canmount and not noauto here,
++ 	 * 	since we categorise by canmount while other properties,
++ 	 * 	e.g. org.openzfs.systemd:wanted-by, also modify noauto.
++@@ -558,7 +561,7 @@ line_worker(char *line, const char *cachefile)
++ 	 * 	Additionally, we use noauto_files to track the unit file names
++ 	 * 	(which are the systemd-escaped mountpoints) of all (exclusively)
++ 	 * 	noauto datasets that had a file created.
++-	 * 4.	If the file to be created is found in the tracking tree,
+++	 * 4.	If the file to be created is found in the tracking array,
++ 	 * 	we do NOT create it.
++ 	 * 5.	If a file exists for a noauto dataset,
++ 	 * 	we check whether the file name is in the array.
++@@ -568,14 +571,29 @@ line_worker(char *line, const char *cachefile)
++ 	 * 	further noauto datasets creating a file for this path again.
++ 	 */
++ 
+++	{
+++		sem_t *our_sem = (strcmp(p_canmount, "on") == 0) ?
+++		    &noauto_files->noauto_names_sem :
+++		    &noauto_files->noauto_not_on_sem;
+++		while (sem_wait(our_sem) == -1 && errno == EINTR)
+++			;
+++	}
+++
++ 	struct stat stbuf;
++ 	bool already_exists = fstatat(destdir_fd, mountfile, &stbuf, 0) == 0;
++-	bool is_known = tfind(mountfile, &noauto_files, STRCMP) != NULL;
++ 
++-	*(tofree++) = (void *)mountfile;
+++	bool is_known = false;
+++	for (size_t i = 0; i < noauto_files->noauto_names_len; ++i) {
+++		if (strncmp(
+++		    noauto_files->noauto_names[i], mountfile, NAME_MAX) == 0) {
+++			is_known = true;
+++			break;
+++		}
+++	}
+++
++ 	if (already_exists) {
++ 		if (is_known) {
++-			/* If it's in noauto_files, we must be noauto too */
+++			/* If it's in $noauto_files, we must be noauto too */
++ 
++ 			/* See 5 */
++ 			errno = 0;
++@@ -596,31 +614,43 @@ line_worker(char *line, const char *cachefile)
++ 		}
++ 
++ 		/* File exists: skip current dataset */
++-		goto end;
+++		if (strcmp(p_canmount, "on") == 0)
+++			sem_post(&noauto_files->noauto_names_sem);
+++		return (0);
++ 	} else {
++ 		if (is_known) {
++ 			/* See 4 */
++-			goto end;
+++			if (strcmp(p_canmount, "on") == 0)
+++				sem_post(&noauto_files->noauto_names_sem);
+++			return (0);
++ 		} else if (strcmp(p_canmount, "noauto") == 0) {
++-			if (tsearch(mountfile, &noauto_files, STRCMP) == NULL)
+++			if (noauto_files->noauto_names_len ==
+++			    noauto_files->noauto_names_max)
++ 				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "out of memory for noauto datasets! "
++-				    "Not tracking %s.\n",
++-				    getpid(), dataset, mountfile);
++-			else
++-				/* mountfile escaped to noauto_files */
++-				*(--tofree) = NULL;
+++				    "noauto dataset limit (%zu) reached! "
+++				    "Not tracking %s. Please report this to "
+++				    "https://github.com/openzfs/zfs\n",
+++				    getpid(), dataset,
+++				    noauto_files->noauto_names_max, mountfile);
+++			else {
+++				strncpy(noauto_files->noauto_names[
+++				    noauto_files->noauto_names_len],
+++				    mountfile, NAME_MAX);
+++				++noauto_files->noauto_names_len;
+++			}
++ 		}
++ 	}
++ 
++ 
++ 	FILE *mountfile_f = fopenat(destdir_fd, mountfile,
++ 	    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, "w", 0644);
+++	if (strcmp(p_canmount, "on") == 0)
+++		sem_post(&noauto_files->noauto_names_sem);
++ 	if (!mountfile_f) {
++ 		fprintf(stderr,
++ 		    PROGNAME "[%d]: %s: couldn't open %s under %s: %s\n",
++ 		    getpid(), dataset, mountfile, destdir, strerror(errno));
++-		goto err;
+++		return (1);
++ 	}
++ 
++ 	fprintf(mountfile_f,
++@@ -669,17 +699,12 @@ line_worker(char *line, const char *cachefile)
++ 	(void) fclose(mountfile_f);
++ 
++ 	if (!requiredby && !wantedby)
++-		goto end;
+++		return (0);
++ 
++ 	/* Finally, create the appropriate dependencies */
++ 	char *linktgt;
++-	if (asprintf(&linktgt, "../%s", mountfile) == -1) {
++-		fprintf(stderr, PROGNAME "[%d]: %s: "
++-		    "out of memory for dependents of %s!\n",
++-		    getpid(), dataset, mountfile);
++-		goto err;
++-	}
++-	*(tofree++) = linktgt;
+++	if (asprintf(&linktgt, "../%s", mountfile) == -1)
+++		EXIT_ENOMEM();
++ 
++ 	char *dependencies[][2] = {
++ 		{"wants", wantedby},
++@@ -694,14 +719,8 @@ line_worker(char *line, const char *cachefile)
++ 		    reqby;
++ 		    reqby = strtok_r(NULL, " ", &toktmp)) {
++ 			char *depdir;
++-			if (asprintf(
++-			    &depdir, "%s.%s", reqby, (*dep)[0]) == -1) {
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "out of memory for dependent dir name "
++-				    "\"%s.%s\"!\n",
++-				    getpid(), dataset, reqby, (*dep)[0]);
++-				continue;
++-			}
+++			if (asprintf(&depdir, "%s.%s", reqby, (*dep)[0]) == -1)
+++				EXIT_ENOMEM();
++ 
++ 			(void) mkdirat(destdir_fd, depdir, 0755);
++ 			int depdir_fd = openat(destdir_fd, depdir,
++@@ -727,24 +746,7 @@ line_worker(char *line, const char *cachefile)
++ 		}
++ 	}
++ 
++-end:
++-	if (tofree >= tofree_all + nitems(tofree_all)) {
++-		/*
++-		 * This won't happen as-is:
++-		 * we've got 8 slots and allocate 4 things at most.
++-		 */
++-		fprintf(stderr,
++-		    PROGNAME "[%d]: %s: need to free %zu > %zu!\n",
++-		    getpid(), dataset, tofree - tofree_all, nitems(tofree_all));
++-		ret = tofree - tofree_all;
++-	}
++-
++-	while (tofree-- != tofree_all)
++-		free(*tofree);
++-	return (ret);
++-err:
++-	ret = 1;
++-	goto end;
+++	return (0);
++ }
++ 
++ 
++@@ -778,11 +780,12 @@ main(int argc, char **argv)
++ 		if (kmfd >= 0) {
++ 			(void) dup2(kmfd, STDERR_FILENO);
++ 			(void) close(kmfd);
++-
++-			setlinebuf(stderr);
++ 		}
++ 	}
++ 
+++	uint8_t debug = 0;
+++
+++	argv0 = argv[0];
++ 	switch (argc) {
++ 	case 1:
++ 		/* Use default */
++@@ -841,9 +844,33 @@ main(int argc, char **argv)
++ 		}
++ 	}
++ 
++-	bool debug = false;
+++	{
+++		/*
+++		 * We could just get a gigabyte here and Not Care,
+++		 * but if vm.overcommit_memory=2, then MAP_NORESERVE is ignored
+++		 * and we'd try (and likely fail) to rip it out of swap
+++		 */
+++		noauto_files = mmap(NULL, 4 * 1024 * 1024,
+++		    PROT_READ | PROT_WRITE,
+++		    MAP_SHARED | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+++		if (noauto_files == MAP_FAILED) {
+++			fprintf(stderr,
+++			    PROGNAME "[%d]: couldn't allocate IPC region: %s\n",
+++			    getpid(), strerror(errno));
+++			_exit(1);
+++		}
+++
+++		sem_init(&noauto_files->noauto_not_on_sem, true, 0);
+++		sem_init(&noauto_files->noauto_names_sem, true, 1);
+++		noauto_files->noauto_names_len = 0;
+++		/* Works out to 16447ish, *well* enough */
+++		noauto_files->noauto_names_max =
+++		    (4 * 1024 * 1024 - sizeof (*noauto_files)) / NAME_MAX;
+++	}
+++
++ 	char *line = NULL;
++ 	size_t linelen = 0;
+++	struct timespec time_start = {};
++ 	{
++ 		const char *dbgenv = getenv("ZFS_DEBUG");
++ 		if (dbgenv)
++@@ -852,7 +879,7 @@ main(int argc, char **argv)
++ 			FILE *cmdline = fopen("/proc/cmdline", "re");
++ 			if (cmdline != NULL) {
++ 				if (getline(&line, &linelen, cmdline) >= 0)
++-					debug = strstr(line, "debug");
+++					debug = strstr(line, "debug") ? 2 : 0;
++ 				(void) fclose(cmdline);
++ 			}
++ 		}
++@@ -861,17 +888,19 @@ main(int argc, char **argv)
++ 			dup2(STDERR_FILENO, STDOUT_FILENO);
++ 	}
++ 
++-	struct timespec time_start = {};
+++	size_t forked_canmount_on = 0;
+++	size_t forked_canmount_not_on = 0;
+++	size_t canmount_on_pids_len = 128;
+++	pid_t *canmount_on_pids =
+++	    malloc(canmount_on_pids_len * sizeof (*canmount_on_pids));
+++	if (canmount_on_pids == NULL)
+++		canmount_on_pids_len = 0;
+++
++ 	if (debug)
++ 		clock_gettime(CLOCK_MONOTONIC_RAW, &time_start);
++ 
++-	struct line {
++-		char *line;
++-		const char *fname;
++-		struct line *next;
++-	} *lines_canmount_not_on = NULL;
++-
++-	int ret = 0;
+++	ssize_t read;
+++	pid_t pid;
++ 	struct dirent *cachent;
++ 	while ((cachent = readdir(fslist_dir)) != NULL) {
++ 		if (strcmp(cachent->d_name, ".") == 0 ||
++@@ -887,67 +916,129 @@ main(int argc, char **argv)
++ 			continue;
++ 		}
++ 
++-		const char *filename = FREE_STATICS ? "(elided)" : NULL;
++-
++-		ssize_t read;
++ 		while ((read = getline(&line, &linelen, cachefile)) >= 0) {
++ 			line[read - 1] = '\0'; /* newline */
++ 
++-			char *canmount = line;
++-			canmount += strcspn(canmount, "\t");
++-			canmount += strspn(canmount, "\t");
++-			canmount += strcspn(canmount, "\t");
++-			canmount += strspn(canmount, "\t");
++-			bool canmount_on = strncmp(canmount, "on", 2) == 0;
++-
++-			if (canmount_on)
++-				ret |= line_worker(line, cachent->d_name);
++-			else {
++-				if (filename == NULL)
++-					filename =
++-					    strdup(cachent->d_name) ?: "(?)";
++-
++-				struct line *l = calloc(1, sizeof (*l));
++-				char *nl = strdup(line);
++-				if (l == NULL || nl == NULL) {
++-					fprintf(stderr, PROGNAME "[%d]: "
++-					    "out of memory for \"%s\" in %s\n",
++-					    getpid(), line, cachent->d_name);
++-					free(l);
++-					free(nl);
++-					continue;
+++			switch (pid = fork()) {
+++			case -1:
+++				fprintf(stderr,
+++				    PROGNAME "[%d]: couldn't fork for %s: %s\n",
+++				    getpid(), line, strerror(errno));
+++				break;
+++			case 0: /* child */
+++				_exit(line_worker(line, cachent->d_name));
+++			default: { /* parent */
+++				char *tmp;
+++				char *dset = strtok_r(line, "\t", &tmp);
+++				strtok_r(NULL, "\t", &tmp);
+++				char *canmount = strtok_r(NULL, "\t", &tmp);
+++				bool canmount_on =
+++				    canmount && strncmp(canmount, "on", 2) == 0;
+++
+++				if (debug >= 2)
+++					printf(PROGNAME ": forked %d, "
+++					    "canmount_on=%d, dataset=%s\n",
+++					    (int)pid, canmount_on, dset);
+++
+++				if (canmount_on &&
+++				    forked_canmount_on ==
+++				    canmount_on_pids_len) {
+++					size_t new_len =
+++					    (canmount_on_pids_len ?: 16) * 2;
+++					void *new_pidlist =
+++					    realloc(canmount_on_pids,
+++					    new_len *
+++					    sizeof (*canmount_on_pids));
+++					if (!new_pidlist) {
+++						fprintf(stderr,
+++						    PROGNAME "[%d]: "
+++						    "out of memory! "
+++						    "Mount ordering may be "
+++						    "affected.\n", getpid());
+++						continue;
+++					}
+++
+++					canmount_on_pids = new_pidlist;
+++					canmount_on_pids_len = new_len;
++ 				}
++-				l->line = nl;
++-				l->fname = filename;
++-				l->next = lines_canmount_not_on;
++-				lines_canmount_not_on = l;
+++
+++				if (canmount_on) {
+++					canmount_on_pids[forked_canmount_on] =
+++					    pid;
+++					++forked_canmount_on;
+++				} else
+++					++forked_canmount_not_on;
+++				break;
+++			}
++ 			}
++ 		}
++ 
++-		fclose(cachefile);
+++		(void) fclose(cachefile);
++ 	}
++ 	free(line);
++ 
++-	while (lines_canmount_not_on) {
++-		struct line *l = lines_canmount_not_on;
++-		lines_canmount_not_on = l->next;
+++	if (forked_canmount_on == 0) {
+++		/* No canmount=on processes to finish, so don't deadlock here */
+++		for (size_t i = 0; i < forked_canmount_not_on; ++i)
+++			sem_post(&noauto_files->noauto_not_on_sem);
+++	} else {
+++		/* Likely a no-op, since we got these from a narrow fork loop */
+++		qsort(canmount_on_pids, forked_canmount_on,
+++		    sizeof (*canmount_on_pids), PID_T_CMP);
+++	}
++ 
++-		ret |= line_worker(l->line, l->fname);
++-		if (FREE_STATICS) {
++-			free(l->line);
++-			free(l);
+++	int status, ret = 0;
+++	struct rusage usage;
+++	size_t forked_canmount_on_max = forked_canmount_on;
+++	while ((pid = wait4(-1, &status, 0, &usage)) != -1) {
+++		ret |= WEXITSTATUS(status) | WTERMSIG(status);
+++
+++		if (forked_canmount_on != 0) {
+++			if (bsearch(&pid, canmount_on_pids,
+++			    forked_canmount_on_max, sizeof (*canmount_on_pids),
+++			    PID_T_CMP))
+++				--forked_canmount_on;
+++
+++			if (forked_canmount_on == 0) {
+++				/*
+++				 * All canmount=on processes have finished,
+++				 * let all the lower-priority ones finish now
+++				 */
+++				for (size_t i = 0;
+++				    i < forked_canmount_not_on; ++i)
+++					sem_post(
+++					    &noauto_files->noauto_not_on_sem);
+++			}
++ 		}
+++
+++		if (debug >= 2)
+++			printf(PROGNAME ": %d done, user=%llu.%06us, "
+++			    "system=%llu.%06us, maxrss=%ldB, ex=0x%x\n",
+++			    (int)pid,
+++			    (unsigned long long) usage.ru_utime.tv_sec,
+++			    (unsigned int) usage.ru_utime.tv_usec,
+++			    (unsigned long long) usage.ru_stime.tv_sec,
+++			    (unsigned int) usage.ru_stime.tv_usec,
+++			    usage.ru_maxrss * 1024, status);
++ 	}
++ 
++ 	if (debug) {
++ 		struct timespec time_end = {};
++ 		clock_gettime(CLOCK_MONOTONIC_RAW, &time_end);
++ 
++-		struct rusage usage;
++ 		getrusage(RUSAGE_SELF, &usage);
++ 		printf(
++ 		    "\n"
++-		    PROGNAME ": "
+++		    PROGNAME ": self    : "
+++		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
+++		    (unsigned long long) usage.ru_utime.tv_sec,
+++		    (unsigned int) usage.ru_utime.tv_usec,
+++		    (unsigned long long) usage.ru_stime.tv_sec,
+++		    (unsigned int) usage.ru_stime.tv_usec,
+++		    usage.ru_maxrss * 1024);
+++
+++		getrusage(RUSAGE_CHILDREN, &usage);
+++		printf(PROGNAME ": children: "
++ 		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
++ 		    (unsigned long long) usage.ru_utime.tv_sec,
++ 		    (unsigned int) usage.ru_utime.tv_usec,
++@@ -977,7 +1068,7 @@ main(int argc, char **argv)
++ 		    time_init.tv_nsec / 1000000000;
++ 		time_init.tv_nsec %= 1000000000;
++ 
++-		printf(PROGNAME ": "
+++		printf(PROGNAME ": wall    : "
++ 		    "total=%llu.%09llus = "
++ 		    "init=%llu.%09llus + real=%llu.%09llus\n",
++ 		    (unsigned long long) time_init.tv_sec,
++@@ -986,15 +1077,7 @@ main(int argc, char **argv)
++ 		    (unsigned long long) time_start.tv_nsec,
++ 		    (unsigned long long) time_end.tv_sec,
++ 		    (unsigned long long) time_end.tv_nsec);
++-
++-		fflush(stdout);
++ 	}
++ 
++-	if (FREE_STATICS) {
++-		closedir(fslist_dir);
++-		tdestroy(noauto_files, free);
++-		tdestroy(known_pools, free);
++-		regfree(&uri_regex);
++-	}
++ 	_exit(ret);
++ }
++diff --git a/man/man8/zfs-mount-generator.8.in b/man/man8/zfs-mount-generator.8.in
++index ae8937038e..7aa332ba81 100644
++--- a/man/man8/zfs-mount-generator.8.in
+++++ b/man/man8/zfs-mount-generator.8.in
++@@ -142,11 +142,22 @@ ZEDLET, if enabled
++ .Pq see Xr zed 8 .
++ .
++ .Sh ENVIRONMENT
++-If the
+++The
++ .Sy ZFS_DEBUG
++-environment variable is nonzero
++-.Pq or unset and Pa /proc/cmdline No contains Qq Sy debug ,
++-print summary accounting information at the end.
+++environment variable can either be
+++.Sy 0
+++(default),
+++.Sy 1
+++(print summary accounting information at the end), or at least
+++.Sy 2
+++(print accounting information for each subprocess as it finishes).
+++.
+++If not present,
+++.Pa /proc/cmdline
+++is additionally checked for
+++.Qq debug ,
+++in which case the debug level is set to
+++.Sy 2 .
++ .
++ .Sh EXAMPLES
++ To begin, enable tracking for the pool:
++-- 
++2.32.0
++
+diff --git a/patches/ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch b/patches/ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch
+new file mode 100644
+index 0000000..4ba171e
+--- /dev/null
++++ b/patches/ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch
+@@ -0,0 +1,73 @@
++From 83fbd45b461f5ddec2eedfe96ea4375452637406 Mon Sep 17 00:00:00 2001
++From: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++Date: Mon, 17 Jan 2022 13:57:28 +0000
++Subject: [PATCH 2/3] Revert "etc/systemd/zfs-mount-generator: output tweaks"
++
++This reverts commit ec3b25825e64f37f74605c451cfc026c28920715.
++
++This is to continue support for ubuntu specific zsys patch that
++currently relies on the shell based implementation of the
++generator. See https://bugs.launchpad.net/bugs/1958142
++
++Signed-off-by: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++---
++ .../system-generators/zfs-mount-generator.c   | 22 ++++++++++++-------
++ 1 file changed, 14 insertions(+), 8 deletions(-)
++
++diff --git a/etc/systemd/system-generators/zfs-mount-generator.c b/etc/systemd/system-generators/zfs-mount-generator.c
++index b806339deb..8deeed9df0 100644
++--- a/etc/systemd/system-generators/zfs-mount-generator.c
+++++ b/etc/systemd/system-generators/zfs-mount-generator.c
++@@ -281,7 +281,7 @@ line_worker(char *line, const char *cachefile)
++ 
++ 	if (strcmp(p_encroot, "-") != 0) {
++ 		char *keyloadunit =
++-		    systemd_escape(p_encroot, "zfs-load-key@", ".service");
+++		    systemd_escape(p_encroot, "zfs-load-key-", ".service");
++ 
++ 		if (strcmp(dataset, p_encroot) == 0) {
++ 			const char *keymountdep = NULL;
++@@ -360,27 +360,33 @@ line_worker(char *line, const char *cachefile)
++ 			    "# dataset is a parent of the root filesystem.\n"
++ 			    "StandardOutput=null\n"
++ 			    "StandardError=null\n"
++-			    "ExecStart=/bin/sh -euc '"
++-			        "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"unavailable\" ] || exit 0;",
+++			    "ExecStart=/bin/sh -c '"
+++			        "set -eu;"
+++			        "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
+++			        "[ \"$$keystatus\" = \"unavailable\" ] || exit 0;",
++ 			    dataset);
++ 			if (is_prompt)
++ 				fprintf(keyloadunit_f,
++-				    "for i in 1 2 3; do "
+++				    "count=0;"
+++				    "while [ $$count -lt 3 ]; do "
++ 				        "systemd-ask-password --id=\"zfs:%s\" \"Enter passphrase for %s:\" |"
++ 				        "" ZFS " load-key \"%s\" && exit 0;"
+++				        "count=$$((count + 1));"
++ 				    "done;"
++ 				    "exit 1",
++ 				    dataset, dataset, dataset);
++ 			else
++ 				fprintf(keyloadunit_f,
++-				    "exec " ZFS " load-key \"%s\"",
+++				    "" ZFS " load-key \"%s\"",
++ 				    dataset);
++ 
++ 			fprintf(keyloadunit_f,
++ 				"'\n"
++-				"ExecStop=/bin/sh -euc '"
++-				    "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"available\" ] || exit 0;"
++-				    "exec " ZFS " unload-key \"%s\""
+++				"ExecStop=/bin/sh -c '"
+++				    "set -eu;"
+++				    "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
+++				    "[ \"$$keystatus\" = \"available\" ] || exit 0;"
+++				    "" ZFS " unload-key \"%s\""
++ 				"'\n",
++ 				dataset, dataset);
++ 			/* END CSTYLED */
++-- 
++2.32.0
++
+diff --git a/patches/ubuntu/0003-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch b/patches/ubuntu/0003-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch
+new file mode 100644
+index 0000000..d2cad2e
+--- /dev/null
++++ b/patches/ubuntu/0003-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch
+@@ -0,0 +1,1634 @@
++From 7b5a6894d4b083e89c217244aee53e35aa8e4936 Mon Sep 17 00:00:00 2001
++From: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++Date: Mon, 17 Jan 2022 14:00:42 +0000
++Subject: [PATCH 3/3] Revert "etc/systemd/zfs-mount-generator: rewrite in C"
++
++This reverts commit 0382362ce06a5514a97bbbf11dfe55e7e408898a.
++
++This is to continue support for ubuntu specific zsys patch that
++currently relies on the shell based implementation of the
++generator. See https://bugs.launchpad.net/bugs/1958142
++
++Signed-off-by: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++---
++ Makefile.am                                   |    2 +-
++ etc/systemd/system-generators/Makefile.am     |   14 +-
++ .../system-generators/zfs-mount-generator.c   | 1089 -----------------
++ .../system-generators/zfs-mount-generator.in  |  474 +++++++
++ 4 files changed, 478 insertions(+), 1101 deletions(-)
++ delete mode 100644 etc/systemd/system-generators/zfs-mount-generator.c
++ create mode 100755 etc/systemd/system-generators/zfs-mount-generator.in
++
++diff --git a/Makefile.am b/Makefile.am
++index 34fe16ce41..d4e69a749c 100644
++--- a/Makefile.am
+++++ b/Makefile.am
++@@ -8,7 +8,7 @@ SUBDIRS += rpm
++ endif
++ 
++ if CONFIG_USER
++-SUBDIRS += man scripts lib tests cmd etc contrib
+++SUBDIRS += etc man scripts lib tests cmd contrib
++ if BUILD_LINUX
++ SUBDIRS += udev
++ endif
++diff --git a/etc/systemd/system-generators/Makefile.am b/etc/systemd/system-generators/Makefile.am
++index e5920bf392..fee88dad8c 100644
++--- a/etc/systemd/system-generators/Makefile.am
+++++ b/etc/systemd/system-generators/Makefile.am
++@@ -1,14 +1,6 @@
++-include $(top_srcdir)/config/Rules.am
+++include $(top_srcdir)/config/Substfiles.am
++ 
++-systemdgenerator_PROGRAMS = \
+++systemdgenerator_SCRIPTS = \
++ 	zfs-mount-generator
++ 
++-zfs_mount_generator_SOURCES = \
++-	zfs-mount-generator.c
++-
++-zfs_mount_generator_LDADD = \
++-	$(abs_top_builddir)/lib/libzfs/libzfs.la
++-
++-zfs_mount_generator_LDFLAGS = -pthread
++-
++-include $(top_srcdir)/config/CppCheck.am
+++SUBSTFILES += $(systemdgenerator_SCRIPTS)
++diff --git a/etc/systemd/system-generators/zfs-mount-generator.c b/etc/systemd/system-generators/zfs-mount-generator.c
++deleted file mode 100644
++index 8deeed9df0..0000000000
++--- a/etc/systemd/system-generators/zfs-mount-generator.c
+++++ /dev/null
++@@ -1,1089 +0,0 @@
++-/*
++- * Copyright (c) 2017 Antonio Russo <antonio.e.russo@gmail.com>
++- * Copyright (c) 2020 InsanePrawn <insane.prawny@gmail.com>
++- *
++- * Permission is hereby granted, free of charge, to any person obtaining
++- * a copy of this software and associated documentation files (the
++- * "Software"), to deal in the Software without restriction, including
++- * without limitation the rights to use, copy, modify, merge, publish,
++- * distribute, sublicense, and/or sell copies of the Software, and to
++- * permit persons to whom the Software is furnished to do so, subject to
++- * the following conditions:
++- *
++- * The above copyright notice and this permission notice shall be
++- * included in all copies or substantial portions of the Software.
++- *
++- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++- * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++- * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++- */
++-
++-
++-#include <sys/resource.h>
++-#include <sys/types.h>
++-#include <sys/time.h>
++-#include <sys/stat.h>
++-#include <sys/wait.h>
++-#include <sys/mman.h>
++-#include <semaphore.h>
++-#include <stdbool.h>
++-#include <unistd.h>
++-#include <fcntl.h>
++-#include <stdio.h>
++-#include <time.h>
++-#include <regex.h>
++-#include <search.h>
++-#include <dirent.h>
++-#include <string.h>
++-#include <stdlib.h>
++-#include <limits.h>
++-#include <errno.h>
++-#include <libzfs.h>
++-
++-#define	STRCMP ((int(*)(const void *, const void *))&strcmp)
++-#define	PID_T_CMP ((int(*)(const void *, const void *))&pid_t_cmp)
++-
++-static int
++-pid_t_cmp(const pid_t *lhs, const pid_t *rhs)
++-{
++-	/*
++-	 * This is always valid, quoth sys_types.h(7posix):
++-	 * > blksize_t, pid_t, and ssize_t shall be signed integer types.
++-	 */
++-	return (*lhs - *rhs);
++-}
++-
++-#define	EXIT_ENOMEM() \
++-	do { \
++-		fprintf(stderr, PROGNAME "[%d]: " \
++-		    "not enough memory (L%d)!\n", getpid(), __LINE__); \
++-		_exit(1); \
++-	} while (0)
++-
++-
++-#define	PROGNAME "zfs-mount-generator"
++-#define	FSLIST SYSCONFDIR "/zfs/zfs-list.cache"
++-#define	ZFS SBINDIR "/zfs"
++-
++-#define	OUTPUT_HEADER \
++-	"# Automatically generated by " PROGNAME "\n" \
++-	"\n"
++-
++-/*
++- * Starts like the one in libzfs_util.c but also matches "//"
++- * and captures until the end, since we actually use it for path extraxion
++- */
++-#define	URI_REGEX_S "^\\([A-Za-z][A-Za-z0-9+.\\-]*\\):\\/\\/\\(.*\\)$"
++-static regex_t uri_regex;
++-
++-static char *argv0;
++-
++-static const char *destdir = "/tmp";
++-static int destdir_fd = -1;
++-
++-static void *known_pools = NULL; /* tsearch() of C strings */
++-static struct {
++-	sem_t noauto_not_on_sem;
++-
++-	sem_t noauto_names_sem;
++-	size_t noauto_names_len;
++-	size_t noauto_names_max;
++-	char noauto_names[][NAME_MAX];
++-} *noauto_files;
++-
++-
++-static char *
++-systemd_escape(const char *input, const char *prepend, const char *append)
++-{
++-	size_t len = strlen(input);
++-	size_t applen = strlen(append);
++-	size_t prelen = strlen(prepend);
++-	char *ret = malloc(4 * len + prelen + applen + 1);
++-	if (!ret)
++-		EXIT_ENOMEM();
++-
++-	memcpy(ret, prepend, prelen);
++-	char *out = ret + prelen;
++-
++-	const char *cur = input;
++-	if (*cur == '.') {
++-		memcpy(out, "\\x2e", 4);
++-		out += 4;
++-		++cur;
++-	}
++-	for (; *cur; ++cur) {
++-		if (*cur == '/')
++-			*(out++) = '-';
++-		else if (strchr(
++-		    "0123456789"
++-		    "abcdefghijklmnopqrstuvwxyz"
++-		    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
++-		    ":_.", *cur))
++-			*(out++) = *cur;
++-		else {
++-			sprintf(out, "\\x%02x", (int)*cur);
++-			out += 4;
++-		}
++-	}
++-
++-	memcpy(out, append, applen + 1);
++-	return (ret);
++-}
++-
++-static void
++-simplify_path(char *path)
++-{
++-	char *out = path;
++-	for (char *cur = path; *cur; ++cur) {
++-		if (*cur == '/') {
++-			while (*(cur + 1) == '/')
++-				++cur;
++-			*(out++) = '/';
++-		} else
++-			*(out++) = *cur;
++-	}
++-
++-	*(out++) = '\0';
++-}
++-
++-static bool
++-strendswith(const char *what, const char *suff)
++-{
++-	size_t what_l = strlen(what);
++-	size_t suff_l = strlen(suff);
++-
++-	return ((what_l >= suff_l) &&
++-	    (strcmp(what + what_l - suff_l, suff) == 0));
++-}
++-
++-/* Assumes already-simplified path, doesn't modify input */
++-static char *
++-systemd_escape_path(char *input, const char *prepend, const char *append)
++-{
++-	if (strcmp(input, "/") == 0) {
++-		char *ret;
++-		if (asprintf(&ret, "%s-%s", prepend, append) == -1)
++-			EXIT_ENOMEM();
++-		return (ret);
++-	} else {
++-		/*
++-		 * path_is_normalized() (flattened for absolute paths here),
++-		 * required for proper escaping
++-		 */
++-		if (strstr(input, "/./") || strstr(input, "/../") ||
++-		    strendswith(input, "/.") || strendswith(input, "/.."))
++-			return (NULL);
++-
++-
++-		if (input[0] == '/')
++-			++input;
++-
++-		char *back = &input[strlen(input) - 1];
++-		bool deslash = *back == '/';
++-		if (deslash)
++-			*back = '\0';
++-
++-		char *ret = systemd_escape(input, prepend, append);
++-
++-		if (deslash)
++-			*back = '/';
++-		return (ret);
++-	}
++-}
++-
++-static FILE *
++-fopenat(int dirfd, const char *pathname, int flags,
++-    const char *stream_mode, mode_t mode)
++-{
++-	int fd = openat(dirfd, pathname, flags, mode);
++-	if (fd < 0)
++-		return (NULL);
++-
++-	return (fdopen(fd, stream_mode));
++-}
++-
++-static int
++-line_worker(char *line, const char *cachefile)
++-{
++-	char *toktmp;
++-	/* BEGIN CSTYLED */
++-	const char *dataset                     = strtok_r(line, "\t", &toktmp);
++-	      char *p_mountpoint                = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_canmount                  = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_atime                     = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_relatime                  = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_devices                   = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_exec                      = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_readonly                  = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_setuid                    = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_nbmand                    = strtok_r(NULL, "\t", &toktmp);
++-	const char *p_encroot                   = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	      char *p_keyloc                    = strtok_r(NULL, "\t", &toktmp) ?: strdupa("none");
++-	const char *p_systemd_requires          = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	const char *p_systemd_requiresmountsfor = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	const char *p_systemd_before            = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	const char *p_systemd_after             = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	      char *p_systemd_wantedby          = strtok_r(NULL, "\t", &toktmp) ?: strdupa("-");
++-	      char *p_systemd_requiredby        = strtok_r(NULL, "\t", &toktmp) ?: strdupa("-");
++-	const char *p_systemd_nofail            = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	const char *p_systemd_ignore            = strtok_r(NULL, "\t", &toktmp) ?: "-";
++-	/* END CSTYLED */
++-
++-	const char *pool = dataset;
++-	if ((toktmp = strchr(pool, '/')) != NULL)
++-		pool = strndupa(pool, toktmp - pool);
++-
++-	if (p_nbmand == NULL) {
++-		fprintf(stderr, PROGNAME "[%d]: %s: not enough tokens!\n",
++-		    getpid(), dataset);
++-		return (1);
++-	}
++-
++-	strncpy(argv0, dataset, strlen(argv0));
++-
++-	/* Minimal pre-requisites to mount a ZFS dataset */
++-	const char *after = "zfs-import.target";
++-	const char *wants = "zfs-import.target";
++-	const char *bindsto = NULL;
++-	char *wantedby = NULL;
++-	char *requiredby = NULL;
++-	bool noauto = false;
++-	bool wantedby_append = true;
++-
++-	/*
++-	 * zfs-import.target is not needed if the pool is already imported.
++-	 * This avoids a dependency loop on root-on-ZFS systems:
++-	 *   systemd-random-seed.service After (via RequiresMountsFor)
++-	 *   var-lib.mount After
++-	 *   zfs-import.target After
++-	 *   zfs-import-{cache,scan}.service After
++-	 *   cryptsetup.service After
++-	 *   systemd-random-seed.service
++-	 */
++-	if (tfind(pool, &known_pools, STRCMP)) {
++-		after = "";
++-		wants = "";
++-	}
++-
++-	if (strcmp(p_systemd_after, "-") == 0)
++-		p_systemd_after = NULL;
++-	if (strcmp(p_systemd_before, "-") == 0)
++-		p_systemd_before = NULL;
++-	if (strcmp(p_systemd_requires, "-") == 0)
++-		p_systemd_requires = NULL;
++-	if (strcmp(p_systemd_requiresmountsfor, "-") == 0)
++-		p_systemd_requiresmountsfor = NULL;
++-
++-
++-	if (strcmp(p_encroot, "-") != 0) {
++-		char *keyloadunit =
++-		    systemd_escape(p_encroot, "zfs-load-key-", ".service");
++-
++-		if (strcmp(dataset, p_encroot) == 0) {
++-			const char *keymountdep = NULL;
++-			bool is_prompt = false;
++-
++-			regmatch_t uri_matches[3];
++-			if (regexec(&uri_regex, p_keyloc,
++-			    sizeof (uri_matches) / sizeof (*uri_matches),
++-			    uri_matches, 0) == 0) {
++-				p_keyloc[uri_matches[2].rm_eo] = '\0';
++-				const char *path =
++-				    &p_keyloc[uri_matches[2].rm_so];
++-
++-				/*
++-				 * Assumes all URI keylocations need
++-				 * the mount for their path;
++-				 * http://, for example, wouldn't
++-				 * (but it'd need network-online.target et al.)
++-				 */
++-				keymountdep = path;
++-			} else {
++-				if (strcmp(p_keyloc, "prompt") != 0)
++-					fprintf(stderr, PROGNAME "[%d]: %s: "
++-					    "unknown non-URI keylocation=%s\n",
++-					    getpid(), dataset, p_keyloc);
++-
++-				is_prompt = true;
++-			}
++-
++-
++-			/* Generate the key-load .service unit */
++-			FILE *keyloadunit_f = fopenat(destdir_fd, keyloadunit,
++-			    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, "w",
++-			    0644);
++-			if (!keyloadunit_f) {
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "couldn't open %s under %s: %s\n",
++-				    getpid(), dataset, keyloadunit, destdir,
++-				    strerror(errno));
++-				return (1);
++-			}
++-
++-			fprintf(keyloadunit_f,
++-			    OUTPUT_HEADER
++-			    "[Unit]\n"
++-			    "Description=Load ZFS key for %s\n"
++-			    "SourcePath=" FSLIST "/%s\n"
++-			    "Documentation=man:zfs-mount-generator(8)\n"
++-			    "DefaultDependencies=no\n"
++-			    "Wants=%s\n"
++-			    "After=%s\n",
++-			    dataset, cachefile, wants, after);
++-
++-			if (p_systemd_requires)
++-				fprintf(keyloadunit_f,
++-				    "Requires=%s\n", p_systemd_requires);
++-
++-			if (p_systemd_requiresmountsfor || keymountdep) {
++-				fprintf(keyloadunit_f, "RequiresMountsFor=");
++-				if (p_systemd_requiresmountsfor)
++-					fprintf(keyloadunit_f,
++-					    "%s ", p_systemd_requiresmountsfor);
++-				if (keymountdep)
++-					fprintf(keyloadunit_f,
++-					    "'%s'", keymountdep);
++-				fprintf(keyloadunit_f, "\n");
++-			}
++-
++-			/* BEGIN CSTYLED */
++-			fprintf(keyloadunit_f,
++-			    "\n"
++-			    "[Service]\n"
++-			    "Type=oneshot\n"
++-			    "RemainAfterExit=yes\n"
++-			    "# This avoids a dependency loop involving systemd-journald.socket if this\n"
++-			    "# dataset is a parent of the root filesystem.\n"
++-			    "StandardOutput=null\n"
++-			    "StandardError=null\n"
++-			    "ExecStart=/bin/sh -c '"
++-			        "set -eu;"
++-			        "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
++-			        "[ \"$$keystatus\" = \"unavailable\" ] || exit 0;",
++-			    dataset);
++-			if (is_prompt)
++-				fprintf(keyloadunit_f,
++-				    "count=0;"
++-				    "while [ $$count -lt 3 ]; do "
++-				        "systemd-ask-password --id=\"zfs:%s\" \"Enter passphrase for %s:\" |"
++-				        "" ZFS " load-key \"%s\" && exit 0;"
++-				        "count=$$((count + 1));"
++-				    "done;"
++-				    "exit 1",
++-				    dataset, dataset, dataset);
++-			else
++-				fprintf(keyloadunit_f,
++-				    "" ZFS " load-key \"%s\"",
++-				    dataset);
++-
++-			fprintf(keyloadunit_f,
++-				"'\n"
++-				"ExecStop=/bin/sh -c '"
++-				    "set -eu;"
++-				    "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
++-				    "[ \"$$keystatus\" = \"available\" ] || exit 0;"
++-				    "" ZFS " unload-key \"%s\""
++-				"'\n",
++-				dataset, dataset);
++-			/* END CSTYLED */
++-
++-			(void) fclose(keyloadunit_f);
++-		}
++-
++-		/* Update dependencies for the mount file to want this */
++-		bindsto = keyloadunit;
++-		if (after[0] == '\0')
++-			after = keyloadunit;
++-		else if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1)
++-			after = toktmp;
++-		else
++-			EXIT_ENOMEM();
++-	}
++-
++-
++-	/* Skip generation of the mount unit if org.openzfs.systemd:ignore=on */
++-	if (strcmp(p_systemd_ignore, "-") == 0 ||
++-	    strcmp(p_systemd_ignore, "off") == 0) {
++-		/* ok */
++-	} else if (strcmp(p_systemd_ignore, "on") == 0)
++-		return (0);
++-	else {
++-		fprintf(stderr, PROGNAME "[%d]: %s: "
++-		    "invalid org.openzfs.systemd:ignore=%s\n",
++-		    getpid(), dataset, p_systemd_ignore);
++-		return (1);
++-	}
++-
++-	/* Check for canmount */
++-	if (strcmp(p_canmount, "on") == 0) {
++-		/* ok */
++-	} else if (strcmp(p_canmount, "noauto") == 0)
++-		noauto = true;
++-	else if (strcmp(p_canmount, "off") == 0)
++-		return (0);
++-	else {
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid canmount=%s\n",
++-		    getpid(), dataset, p_canmount);
++-		return (1);
++-	}
++-
++-	/* Check for legacy and blank mountpoints */
++-	if (strcmp(p_mountpoint, "legacy") == 0 ||
++-	    strcmp(p_mountpoint, "none") == 0)
++-		return (0);
++-	else if (p_mountpoint[0] != '/') {
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid mountpoint=%s\n",
++-		    getpid(), dataset, p_mountpoint);
++-		return (1);
++-	}
++-
++-	/* Escape the mountpoint per systemd policy */
++-	simplify_path(p_mountpoint);
++-	const char *mountfile = systemd_escape_path(p_mountpoint, "", ".mount");
++-	if (mountfile == NULL) {
++-		fprintf(stderr,
++-		    PROGNAME "[%d]: %s: abnormal simplified mountpoint: %s\n",
++-		    getpid(), dataset, p_mountpoint);
++-		return (1);
++-	}
++-
++-
++-	/*
++-	 * Parse options, cf. lib/libzfs/libzfs_mount.c:zfs_add_options
++-	 *
++-	 * The longest string achievable here is
++-	 * ",atime,strictatime,nodev,noexec,rw,nosuid,nomand".
++-	 */
++-	char opts[64] = "";
++-
++-	/* atime */
++-	if (strcmp(p_atime, "on") == 0) {
++-		/* relatime */
++-		if (strcmp(p_relatime, "on") == 0)
++-			strcat(opts, ",atime,relatime");
++-		else if (strcmp(p_relatime, "off") == 0)
++-			strcat(opts, ",atime,strictatime");
++-		else
++-			fprintf(stderr,
++-			    PROGNAME "[%d]: %s: invalid relatime=%s\n",
++-			    getpid(), dataset, p_relatime);
++-	} else if (strcmp(p_atime, "off") == 0) {
++-		strcat(opts, ",noatime");
++-	} else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid atime=%s\n",
++-		    getpid(), dataset, p_atime);
++-
++-	/* devices */
++-	if (strcmp(p_devices, "on") == 0)
++-		strcat(opts, ",dev");
++-	else if (strcmp(p_devices, "off") == 0)
++-		strcat(opts, ",nodev");
++-	else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid devices=%s\n",
++-		    getpid(), dataset, p_devices);
++-
++-	/* exec */
++-	if (strcmp(p_exec, "on") == 0)
++-		strcat(opts, ",exec");
++-	else if (strcmp(p_exec, "off") == 0)
++-		strcat(opts, ",noexec");
++-	else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid exec=%s\n",
++-		    getpid(), dataset, p_exec);
++-
++-	/* readonly */
++-	if (strcmp(p_readonly, "on") == 0)
++-		strcat(opts, ",ro");
++-	else if (strcmp(p_readonly, "off") == 0)
++-		strcat(opts, ",rw");
++-	else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid readonly=%s\n",
++-		    getpid(), dataset, p_readonly);
++-
++-	/* setuid */
++-	if (strcmp(p_setuid, "on") == 0)
++-		strcat(opts, ",suid");
++-	else if (strcmp(p_setuid, "off") == 0)
++-		strcat(opts, ",nosuid");
++-	else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid setuid=%s\n",
++-		    getpid(), dataset, p_setuid);
++-
++-	/* nbmand */
++-	if (strcmp(p_nbmand, "on") == 0)
++-		strcat(opts, ",mand");
++-	else if (strcmp(p_nbmand, "off") == 0)
++-		strcat(opts, ",nomand");
++-	else
++-		fprintf(stderr, PROGNAME "[%d]: %s: invalid nbmand=%s\n",
++-		    getpid(), dataset, p_setuid);
++-
++-	if (strcmp(p_systemd_wantedby, "-") != 0) {
++-		noauto = true;
++-
++-		if (strcmp(p_systemd_wantedby, "none") != 0)
++-			wantedby = p_systemd_wantedby;
++-	}
++-
++-	if (strcmp(p_systemd_requiredby, "-") != 0) {
++-		noauto = true;
++-
++-		if (strcmp(p_systemd_requiredby, "none") != 0)
++-			requiredby = p_systemd_requiredby;
++-	}
++-
++-	/*
++-	 * For datasets with canmount=on, a dependency is created for
++-	 * local-fs.target by default. To avoid regressions, this dependency
++-	 * is reduced to "wants" rather than "requires" when nofail!=off.
++-	 * **THIS MAY CHANGE**
++-	 * noauto=on disables this behavior completely.
++-	 */
++-	if (!noauto) {
++-		if (strcmp(p_systemd_nofail, "off") == 0)
++-			requiredby = strdupa("local-fs.target");
++-		else {
++-			wantedby = strdupa("local-fs.target");
++-			wantedby_append = strcmp(p_systemd_nofail, "on") != 0;
++-		}
++-	}
++-
++-	/*
++-	 * Handle existing files:
++-	 * 1.	We never overwrite existing files, although we may delete
++-	 * 	files if we're sure they were created by us. (see 5.)
++-	 * 2.	We handle files differently based on canmount.
++-	 * 	Units with canmount=on always have precedence over noauto.
++-	 * 	This is enforced by the noauto_not_on_sem semaphore,
++-	 * 	which is only unlocked when the last canmount=on process exits.
++-	 * 	It is important to use p_canmount and not noauto here,
++-	 * 	since we categorise by canmount while other properties,
++-	 * 	e.g. org.openzfs.systemd:wanted-by, also modify noauto.
++-	 * 3.	If no unit file exists for a noauto dataset, we create one.
++-	 * 	Additionally, we use noauto_files to track the unit file names
++-	 * 	(which are the systemd-escaped mountpoints) of all (exclusively)
++-	 * 	noauto datasets that had a file created.
++-	 * 4.	If the file to be created is found in the tracking array,
++-	 * 	we do NOT create it.
++-	 * 5.	If a file exists for a noauto dataset,
++-	 * 	we check whether the file name is in the array.
++-	 * 	If it is, we have multiple noauto datasets for the same
++-	 * 	mountpoint. In such cases, we remove the file for safety.
++-	 * 	We leave the file name in the tracking array to avoid
++-	 * 	further noauto datasets creating a file for this path again.
++-	 */
++-
++-	{
++-		sem_t *our_sem = (strcmp(p_canmount, "on") == 0) ?
++-		    &noauto_files->noauto_names_sem :
++-		    &noauto_files->noauto_not_on_sem;
++-		while (sem_wait(our_sem) == -1 && errno == EINTR)
++-			;
++-	}
++-
++-	struct stat stbuf;
++-	bool already_exists = fstatat(destdir_fd, mountfile, &stbuf, 0) == 0;
++-
++-	bool is_known = false;
++-	for (size_t i = 0; i < noauto_files->noauto_names_len; ++i) {
++-		if (strncmp(
++-		    noauto_files->noauto_names[i], mountfile, NAME_MAX) == 0) {
++-			is_known = true;
++-			break;
++-		}
++-	}
++-
++-	if (already_exists) {
++-		if (is_known) {
++-			/* If it's in $noauto_files, we must be noauto too */
++-
++-			/* See 5 */
++-			errno = 0;
++-			(void) unlinkat(destdir_fd, mountfile, 0);
++-
++-			/* See 2 */
++-			fprintf(stderr, PROGNAME "[%d]: %s: "
++-			    "removing duplicate noauto unit %s%s%s\n",
++-			    getpid(), dataset, mountfile,
++-			    errno ? "" : " failed: ",
++-			    errno ? "" : strerror(errno));
++-		} else {
++-			/* Don't log for canmount=noauto */
++-			if (strcmp(p_canmount, "on") == 0)
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "%s already exists. Skipping.\n",
++-				    getpid(), dataset, mountfile);
++-		}
++-
++-		/* File exists: skip current dataset */
++-		if (strcmp(p_canmount, "on") == 0)
++-			sem_post(&noauto_files->noauto_names_sem);
++-		return (0);
++-	} else {
++-		if (is_known) {
++-			/* See 4 */
++-			if (strcmp(p_canmount, "on") == 0)
++-				sem_post(&noauto_files->noauto_names_sem);
++-			return (0);
++-		} else if (strcmp(p_canmount, "noauto") == 0) {
++-			if (noauto_files->noauto_names_len ==
++-			    noauto_files->noauto_names_max)
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "noauto dataset limit (%zu) reached! "
++-				    "Not tracking %s. Please report this to "
++-				    "https://github.com/openzfs/zfs\n",
++-				    getpid(), dataset,
++-				    noauto_files->noauto_names_max, mountfile);
++-			else {
++-				strncpy(noauto_files->noauto_names[
++-				    noauto_files->noauto_names_len],
++-				    mountfile, NAME_MAX);
++-				++noauto_files->noauto_names_len;
++-			}
++-		}
++-	}
++-
++-
++-	FILE *mountfile_f = fopenat(destdir_fd, mountfile,
++-	    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, "w", 0644);
++-	if (strcmp(p_canmount, "on") == 0)
++-		sem_post(&noauto_files->noauto_names_sem);
++-	if (!mountfile_f) {
++-		fprintf(stderr,
++-		    PROGNAME "[%d]: %s: couldn't open %s under %s: %s\n",
++-		    getpid(), dataset, mountfile, destdir, strerror(errno));
++-		return (1);
++-	}
++-
++-	fprintf(mountfile_f,
++-	    OUTPUT_HEADER
++-	    "[Unit]\n"
++-	    "SourcePath=" FSLIST "/%s\n"
++-	    "Documentation=man:zfs-mount-generator(8)\n"
++-	    "\n"
++-	    "Before=",
++-	    cachefile);
++-
++-	if (p_systemd_before)
++-		fprintf(mountfile_f, "%s ", p_systemd_before);
++-	fprintf(mountfile_f, "zfs-mount.service"); /* Ensures we don't race */
++-	if (requiredby)
++-		fprintf(mountfile_f, " %s", requiredby);
++-	if (wantedby && wantedby_append)
++-		fprintf(mountfile_f, " %s", wantedby);
++-
++-	fprintf(mountfile_f,
++-	    "\n"
++-	    "After=");
++-	if (p_systemd_after)
++-		fprintf(mountfile_f, "%s ", p_systemd_after);
++-	fprintf(mountfile_f, "%s\n", after);
++-
++-	fprintf(mountfile_f, "Wants=%s\n", wants);
++-
++-	if (bindsto)
++-		fprintf(mountfile_f, "BindsTo=%s\n", bindsto);
++-	if (p_systemd_requires)
++-		fprintf(mountfile_f, "Requires=%s\n", p_systemd_requires);
++-	if (p_systemd_requiresmountsfor)
++-		fprintf(mountfile_f,
++-		    "RequiresMountsFor=%s\n", p_systemd_requiresmountsfor);
++-
++-	fprintf(mountfile_f,
++-	    "\n"
++-	    "[Mount]\n"
++-	    "Where=%s\n"
++-	    "What=%s\n"
++-	    "Type=zfs\n"
++-	    "Options=defaults%s,zfsutil\n",
++-	    p_mountpoint, dataset, opts);
++-
++-	(void) fclose(mountfile_f);
++-
++-	if (!requiredby && !wantedby)
++-		return (0);
++-
++-	/* Finally, create the appropriate dependencies */
++-	char *linktgt;
++-	if (asprintf(&linktgt, "../%s", mountfile) == -1)
++-		EXIT_ENOMEM();
++-
++-	char *dependencies[][2] = {
++-		{"wants", wantedby},
++-		{"requires", requiredby},
++-		{}
++-	};
++-	for (__typeof__(&*dependencies) dep = &*dependencies; **dep; ++dep) {
++-		if (!(*dep)[1])
++-			continue;
++-
++-		for (char *reqby = strtok_r((*dep)[1], " ", &toktmp);
++-		    reqby;
++-		    reqby = strtok_r(NULL, " ", &toktmp)) {
++-			char *depdir;
++-			if (asprintf(&depdir, "%s.%s", reqby, (*dep)[0]) == -1)
++-				EXIT_ENOMEM();
++-
++-			(void) mkdirat(destdir_fd, depdir, 0755);
++-			int depdir_fd = openat(destdir_fd, depdir,
++-			    O_PATH | O_DIRECTORY | O_CLOEXEC);
++-			if (depdir_fd < 0) {
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "couldn't open %s under %s: %s\n",
++-				    getpid(), dataset, depdir, destdir,
++-				    strerror(errno));
++-				free(depdir);
++-				continue;
++-			}
++-
++-			if (symlinkat(linktgt, depdir_fd, mountfile) == -1)
++-				fprintf(stderr, PROGNAME "[%d]: %s: "
++-				    "couldn't symlink at "
++-				    "%s under %s under %s: %s\n",
++-				    getpid(), dataset, mountfile,
++-				    depdir, destdir, strerror(errno));
++-
++-			(void) close(depdir_fd);
++-			free(depdir);
++-		}
++-	}
++-
++-	return (0);
++-}
++-
++-
++-static int
++-pool_enumerator(zpool_handle_t *pool, void *data __attribute__((unused)))
++-{
++-	int ret = 0;
++-
++-	/*
++-	 * Pools are guaranteed-unique by the kernel,
++-	 * no risk of leaking dupes here
++-	 */
++-	char *name = strdup(zpool_get_name(pool));
++-	if (!name || !tsearch(name, &known_pools, STRCMP)) {
++-		free(name);
++-		ret = ENOMEM;
++-	}
++-
++-	zpool_close(pool);
++-	return (ret);
++-}
++-
++-int
++-main(int argc, char **argv)
++-{
++-	struct timespec time_init = {};
++-	clock_gettime(CLOCK_MONOTONIC_RAW, &time_init);
++-
++-	{
++-		int kmfd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
++-		if (kmfd >= 0) {
++-			(void) dup2(kmfd, STDERR_FILENO);
++-			(void) close(kmfd);
++-		}
++-	}
++-
++-	uint8_t debug = 0;
++-
++-	argv0 = argv[0];
++-	switch (argc) {
++-	case 1:
++-		/* Use default */
++-		break;
++-	case 2:
++-	case 4:
++-		destdir = argv[1];
++-		break;
++-	default:
++-		fprintf(stderr,
++-		    PROGNAME "[%d]: wrong argument count: %d\n",
++-		    getpid(), argc - 1);
++-		_exit(1);
++-	}
++-
++-	{
++-		destdir_fd = open(destdir, O_PATH | O_DIRECTORY | O_CLOEXEC);
++-		if (destdir_fd < 0) {
++-			fprintf(stderr, PROGNAME "[%d]: "
++-			    "can't open destination directory %s: %s\n",
++-			    getpid(), destdir, strerror(errno));
++-			_exit(1);
++-		}
++-	}
++-
++-	DIR *fslist_dir = opendir(FSLIST);
++-	if (!fslist_dir) {
++-		if (errno != ENOENT)
++-			fprintf(stderr,
++-			    PROGNAME "[%d]: couldn't open " FSLIST ": %s\n",
++-			    getpid(), strerror(errno));
++-		_exit(0);
++-	}
++-
++-	{
++-		libzfs_handle_t *libzfs = libzfs_init();
++-		if (libzfs) {
++-			if (zpool_iter(libzfs, pool_enumerator, NULL) != 0)
++-				fprintf(stderr, PROGNAME "[%d]: "
++-				    "error listing pools, ignoring\n",
++-				    getpid());
++-			libzfs_fini(libzfs);
++-		} else
++-			fprintf(stderr, PROGNAME "[%d]: "
++-			    "couldn't start libzfs, ignoring\n",
++-			    getpid());
++-	}
++-
++-	{
++-		int regerr = regcomp(&uri_regex, URI_REGEX_S, 0);
++-		if (regerr != 0) {
++-			fprintf(stderr,
++-			    PROGNAME "[%d]: invalid regex: %d\n",
++-			    getpid(), regerr);
++-			_exit(1);
++-		}
++-	}
++-
++-	{
++-		/*
++-		 * We could just get a gigabyte here and Not Care,
++-		 * but if vm.overcommit_memory=2, then MAP_NORESERVE is ignored
++-		 * and we'd try (and likely fail) to rip it out of swap
++-		 */
++-		noauto_files = mmap(NULL, 4 * 1024 * 1024,
++-		    PROT_READ | PROT_WRITE,
++-		    MAP_SHARED | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
++-		if (noauto_files == MAP_FAILED) {
++-			fprintf(stderr,
++-			    PROGNAME "[%d]: couldn't allocate IPC region: %s\n",
++-			    getpid(), strerror(errno));
++-			_exit(1);
++-		}
++-
++-		sem_init(&noauto_files->noauto_not_on_sem, true, 0);
++-		sem_init(&noauto_files->noauto_names_sem, true, 1);
++-		noauto_files->noauto_names_len = 0;
++-		/* Works out to 16447ish, *well* enough */
++-		noauto_files->noauto_names_max =
++-		    (4 * 1024 * 1024 - sizeof (*noauto_files)) / NAME_MAX;
++-	}
++-
++-	char *line = NULL;
++-	size_t linelen = 0;
++-	struct timespec time_start = {};
++-	{
++-		const char *dbgenv = getenv("ZFS_DEBUG");
++-		if (dbgenv)
++-			debug = atoi(dbgenv);
++-		else {
++-			FILE *cmdline = fopen("/proc/cmdline", "re");
++-			if (cmdline != NULL) {
++-				if (getline(&line, &linelen, cmdline) >= 0)
++-					debug = strstr(line, "debug") ? 2 : 0;
++-				(void) fclose(cmdline);
++-			}
++-		}
++-
++-		if (debug && !isatty(STDOUT_FILENO))
++-			dup2(STDERR_FILENO, STDOUT_FILENO);
++-	}
++-
++-	size_t forked_canmount_on = 0;
++-	size_t forked_canmount_not_on = 0;
++-	size_t canmount_on_pids_len = 128;
++-	pid_t *canmount_on_pids =
++-	    malloc(canmount_on_pids_len * sizeof (*canmount_on_pids));
++-	if (canmount_on_pids == NULL)
++-		canmount_on_pids_len = 0;
++-
++-	if (debug)
++-		clock_gettime(CLOCK_MONOTONIC_RAW, &time_start);
++-
++-	ssize_t read;
++-	pid_t pid;
++-	struct dirent *cachent;
++-	while ((cachent = readdir(fslist_dir)) != NULL) {
++-		if (strcmp(cachent->d_name, ".") == 0 ||
++-		    strcmp(cachent->d_name, "..") == 0)
++-			continue;
++-
++-		FILE *cachefile = fopenat(dirfd(fslist_dir), cachent->d_name,
++-		    O_RDONLY | O_CLOEXEC, "r", 0);
++-		if (!cachefile) {
++-			fprintf(stderr, PROGNAME "[%d]: "
++-			    "couldn't open %s under " FSLIST ": %s\n",
++-			    getpid(), cachent->d_name, strerror(errno));
++-			continue;
++-		}
++-
++-		while ((read = getline(&line, &linelen, cachefile)) >= 0) {
++-			line[read - 1] = '\0'; /* newline */
++-
++-			switch (pid = fork()) {
++-			case -1:
++-				fprintf(stderr,
++-				    PROGNAME "[%d]: couldn't fork for %s: %s\n",
++-				    getpid(), line, strerror(errno));
++-				break;
++-			case 0: /* child */
++-				_exit(line_worker(line, cachent->d_name));
++-			default: { /* parent */
++-				char *tmp;
++-				char *dset = strtok_r(line, "\t", &tmp);
++-				strtok_r(NULL, "\t", &tmp);
++-				char *canmount = strtok_r(NULL, "\t", &tmp);
++-				bool canmount_on =
++-				    canmount && strncmp(canmount, "on", 2) == 0;
++-
++-				if (debug >= 2)
++-					printf(PROGNAME ": forked %d, "
++-					    "canmount_on=%d, dataset=%s\n",
++-					    (int)pid, canmount_on, dset);
++-
++-				if (canmount_on &&
++-				    forked_canmount_on ==
++-				    canmount_on_pids_len) {
++-					size_t new_len =
++-					    (canmount_on_pids_len ?: 16) * 2;
++-					void *new_pidlist =
++-					    realloc(canmount_on_pids,
++-					    new_len *
++-					    sizeof (*canmount_on_pids));
++-					if (!new_pidlist) {
++-						fprintf(stderr,
++-						    PROGNAME "[%d]: "
++-						    "out of memory! "
++-						    "Mount ordering may be "
++-						    "affected.\n", getpid());
++-						continue;
++-					}
++-
++-					canmount_on_pids = new_pidlist;
++-					canmount_on_pids_len = new_len;
++-				}
++-
++-				if (canmount_on) {
++-					canmount_on_pids[forked_canmount_on] =
++-					    pid;
++-					++forked_canmount_on;
++-				} else
++-					++forked_canmount_not_on;
++-				break;
++-			}
++-			}
++-		}
++-
++-		(void) fclose(cachefile);
++-	}
++-	free(line);
++-
++-	if (forked_canmount_on == 0) {
++-		/* No canmount=on processes to finish, so don't deadlock here */
++-		for (size_t i = 0; i < forked_canmount_not_on; ++i)
++-			sem_post(&noauto_files->noauto_not_on_sem);
++-	} else {
++-		/* Likely a no-op, since we got these from a narrow fork loop */
++-		qsort(canmount_on_pids, forked_canmount_on,
++-		    sizeof (*canmount_on_pids), PID_T_CMP);
++-	}
++-
++-	int status, ret = 0;
++-	struct rusage usage;
++-	size_t forked_canmount_on_max = forked_canmount_on;
++-	while ((pid = wait4(-1, &status, 0, &usage)) != -1) {
++-		ret |= WEXITSTATUS(status) | WTERMSIG(status);
++-
++-		if (forked_canmount_on != 0) {
++-			if (bsearch(&pid, canmount_on_pids,
++-			    forked_canmount_on_max, sizeof (*canmount_on_pids),
++-			    PID_T_CMP))
++-				--forked_canmount_on;
++-
++-			if (forked_canmount_on == 0) {
++-				/*
++-				 * All canmount=on processes have finished,
++-				 * let all the lower-priority ones finish now
++-				 */
++-				for (size_t i = 0;
++-				    i < forked_canmount_not_on; ++i)
++-					sem_post(
++-					    &noauto_files->noauto_not_on_sem);
++-			}
++-		}
++-
++-		if (debug >= 2)
++-			printf(PROGNAME ": %d done, user=%llu.%06us, "
++-			    "system=%llu.%06us, maxrss=%ldB, ex=0x%x\n",
++-			    (int)pid,
++-			    (unsigned long long) usage.ru_utime.tv_sec,
++-			    (unsigned int) usage.ru_utime.tv_usec,
++-			    (unsigned long long) usage.ru_stime.tv_sec,
++-			    (unsigned int) usage.ru_stime.tv_usec,
++-			    usage.ru_maxrss * 1024, status);
++-	}
++-
++-	if (debug) {
++-		struct timespec time_end = {};
++-		clock_gettime(CLOCK_MONOTONIC_RAW, &time_end);
++-
++-		getrusage(RUSAGE_SELF, &usage);
++-		printf(
++-		    "\n"
++-		    PROGNAME ": self    : "
++-		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
++-		    (unsigned long long) usage.ru_utime.tv_sec,
++-		    (unsigned int) usage.ru_utime.tv_usec,
++-		    (unsigned long long) usage.ru_stime.tv_sec,
++-		    (unsigned int) usage.ru_stime.tv_usec,
++-		    usage.ru_maxrss * 1024);
++-
++-		getrusage(RUSAGE_CHILDREN, &usage);
++-		printf(PROGNAME ": children: "
++-		    "user=%llu.%06us, system=%llu.%06us, maxrss=%ldB\n",
++-		    (unsigned long long) usage.ru_utime.tv_sec,
++-		    (unsigned int) usage.ru_utime.tv_usec,
++-		    (unsigned long long) usage.ru_stime.tv_sec,
++-		    (unsigned int) usage.ru_stime.tv_usec,
++-		    usage.ru_maxrss * 1024);
++-
++-		if (time_start.tv_nsec > time_end.tv_nsec) {
++-			time_end.tv_nsec =
++-			    1000000000 + time_end.tv_nsec - time_start.tv_nsec;
++-			time_end.tv_sec -= 1;
++-		} else
++-			time_end.tv_nsec -= time_start.tv_nsec;
++-		time_end.tv_sec -= time_start.tv_sec;
++-
++-		if (time_init.tv_nsec > time_start.tv_nsec) {
++-			time_start.tv_nsec =
++-			    1000000000 + time_start.tv_nsec - time_init.tv_nsec;
++-			time_start.tv_sec -= 1;
++-		} else
++-			time_start.tv_nsec -= time_init.tv_nsec;
++-		time_start.tv_sec -= time_init.tv_sec;
++-
++-		time_init.tv_nsec = time_start.tv_nsec + time_end.tv_nsec;
++-		time_init.tv_sec =
++-		    time_start.tv_sec + time_end.tv_sec +
++-		    time_init.tv_nsec / 1000000000;
++-		time_init.tv_nsec %= 1000000000;
++-
++-		printf(PROGNAME ": wall    : "
++-		    "total=%llu.%09llus = "
++-		    "init=%llu.%09llus + real=%llu.%09llus\n",
++-		    (unsigned long long) time_init.tv_sec,
++-		    (unsigned long long) time_init.tv_nsec,
++-		    (unsigned long long) time_start.tv_sec,
++-		    (unsigned long long) time_start.tv_nsec,
++-		    (unsigned long long) time_end.tv_sec,
++-		    (unsigned long long) time_end.tv_nsec);
++-	}
++-
++-	_exit(ret);
++-}
++diff --git a/etc/systemd/system-generators/zfs-mount-generator.in b/etc/systemd/system-generators/zfs-mount-generator.in
++new file mode 100755
++index 0000000000..c276fbbce5
++--- /dev/null
+++++ b/etc/systemd/system-generators/zfs-mount-generator.in
++@@ -0,0 +1,474 @@
+++#!/bin/sh
+++
+++# zfs-mount-generator - generates systemd mount units for zfs
+++# Copyright (c) 2017 Antonio Russo <antonio.e.russo@gmail.com>
+++# Copyright (c) 2020 InsanePrawn <insane.prawny@gmail.com>
+++#
+++# Permission is hereby granted, free of charge, to any person obtaining
+++# a copy of this software and associated documentation files (the
+++# "Software"), to deal in the Software without restriction, including
+++# without limitation the rights to use, copy, modify, merge, publish,
+++# distribute, sublicense, and/or sell copies of the Software, and to
+++# permit persons to whom the Software is furnished to do so, subject to
+++# the following conditions:
+++#
+++# The above copyright notice and this permission notice shall be
+++# included in all copies or substantial portions of the Software.
+++#
+++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+++# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+++# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+++# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+++# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+++# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+++# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+++
+++set -e
+++
+++FSLIST="@sysconfdir@/zfs/zfs-list.cache"
+++
+++[ -d "${FSLIST}" ] || exit 0
+++[ "$(echo "${FSLIST}"/*)" = "${FSLIST}/*" ] && exit 0
+++
+++do_fail() {
+++  printf 'zfs-mount-generator: %s\n' "$*" > /dev/kmsg
+++  exit 1
+++}
+++
+++# test if $1 is in space-separated list $2
+++is_known() {
+++  query="$1"
+++  IFS=' '
+++  for element in $2 ; do
+++    if [ "$query" = "$element" ] ; then
+++      return 0
+++    fi
+++  done
+++  return 1
+++}
+++
+++# create dependency on unit file $1
+++# of type $2, i.e. "wants" or "requires"
+++# in the target units from space-separated list $3
+++create_dependencies() {
+++  unitfile="$1"
+++  suffix="$2"
+++  IFS=' '
+++  for target in $3 ; do
+++    target_dir="${dest_norm}/${target}.${suffix}/"
+++    mkdir -p "${target_dir}"
+++    ln -s "../${unitfile}" "${target_dir}"
+++  done
+++}
+++
+++# see systemd.generator
+++if [ $# -eq 0 ] ; then
+++  dest_norm="/tmp"
+++elif [ $# -eq 3 ] ; then
+++  dest_norm="${1}"
+++else
+++  do_fail "zero or three arguments required"
+++fi
+++
+++pools=$(zpool list -H -o name || true)
+++
+++# All needed information about each ZFS is available from
+++# zfs list -H -t filesystem -o <properties>
+++# cached in $FSLIST, and each line is processed by the following function:
+++# See the list below for the properties and their order
+++
+++process_line() {
+++
+++  # zfs list -H -o name,...
+++  # fields are tab separated
+++  IFS="$(printf '\t')"
+++  # shellcheck disable=SC2086
+++  set -- $1
+++
+++  dataset="${1}"
+++  pool="${dataset%%/*}"
+++  p_mountpoint="${2}"
+++  p_canmount="${3}"
+++  p_atime="${4}"
+++  p_relatime="${5}"
+++  p_devices="${6}"
+++  p_exec="${7}"
+++  p_readonly="${8}"
+++  p_setuid="${9}"
+++  p_nbmand="${10}"
+++  p_encroot="${11}"
+++  p_keyloc="${12}"
+++  p_systemd_requires="${13}"
+++  p_systemd_requiresmountsfor="${14}"
+++  p_systemd_before="${15}"
+++  p_systemd_after="${16}"
+++  p_systemd_wantedby="${17}"
+++  p_systemd_requiredby="${18}"
+++  p_systemd_nofail="${19}"
+++  p_systemd_ignore="${20}"
+++
+++  # Minimal pre-requisites to mount a ZFS dataset
+++  # By ordering before zfs-mount.service, we avoid race conditions.
+++  after="zfs-import.target"
+++  before="zfs-mount.service"
+++  wants="zfs-import.target"
+++  requires=""
+++  requiredmounts=""
+++  bindsto=""
+++  wantedby=""
+++  requiredby=""
+++  noauto="off"
+++
+++  # If the pool is already imported, zfs-import.target is not needed.  This
+++  # avoids a dependency loop on root-on-ZFS systems:
+++  # systemd-random-seed.service After (via RequiresMountsFor) var-lib.mount
+++  # After zfs-import.target After zfs-import-{cache,scan}.service After
+++  # cryptsetup.service After systemd-random-seed.service.
+++  #
+++  # Pools are newline-separated and may contain spaces in their names.
+++  # There is no better portable way to set IFS to just a newline.  Using
+++  # $(printf '\n') doesn't work because $(...) strips trailing newlines.
+++  IFS="
+++"
+++  for p in $pools ; do
+++    if [ "$p" = "$pool" ] ; then
+++      after=""
+++      wants=""
+++      break
+++    fi
+++  done
+++
+++  if [ -n "${p_systemd_after}" ] && \
+++      [ "${p_systemd_after}" != "-" ] ; then
+++    after="${p_systemd_after} ${after}"
+++  fi
+++
+++  if [ -n "${p_systemd_before}" ] && \
+++      [ "${p_systemd_before}" != "-" ] ; then
+++    before="${p_systemd_before} ${before}"
+++  fi
+++
+++  if [ -n "${p_systemd_requires}" ] && \
+++      [ "${p_systemd_requires}" != "-" ] ; then
+++    requires="Requires=${p_systemd_requires}"
+++  fi
+++
+++  if [ -n "${p_systemd_requiresmountsfor}" ] && \
+++      [ "${p_systemd_requiresmountsfor}" != "-" ] ; then
+++    requiredmounts="RequiresMountsFor=${p_systemd_requiresmountsfor}"
+++  fi
+++
+++  # Handle encryption
+++  if [ -n "${p_encroot}" ] &&
+++      [ "${p_encroot}" != "-" ] ; then
+++    keyloadunit="zfs-load-key-$(systemd-escape "${p_encroot}").service"
+++    if [ "${p_encroot}" = "${dataset}" ] ; then
+++      keymountdep=""
+++      if [ "${p_keyloc%%://*}" = "file" ] ; then
+++        if [ -n "${requiredmounts}" ] ; then
+++          keymountdep="${requiredmounts} '${p_keyloc#file://}'"
+++        else
+++          keymountdep="RequiresMountsFor='${p_keyloc#file://}'"
+++        fi
+++        keyloadscript="@sbindir@/zfs load-key \"${dataset}\""
+++      elif [ "${p_keyloc}" = "prompt" ] ; then
+++        keyloadscript="\
+++count=0;\
+++while [ \$\$count -lt 3 ];do\
+++  systemd-ask-password --id=\"zfs:${dataset}\"\
+++    \"Enter passphrase for ${dataset}:\"|\
+++    @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
+++  count=\$\$((count + 1));\
+++done;\
+++exit 1"
+++      else
+++        printf 'zfs-mount-generator: (%s) invalid keylocation\n' \
+++          "${dataset}" >/dev/kmsg
+++      fi
+++      keyloadcmd="\
+++/bin/sh -c '\
+++set -eu;\
+++keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
+++[ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;\
+++${keyloadscript}'"
+++      keyunloadcmd="\
+++/bin/sh -c '\
+++set -eu;\
+++keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
+++[ \"\$\$keystatus\" = \"available\" ] || exit 0;\
+++@sbindir@/zfs unload-key \"${dataset}\"'"
+++
+++
+++
+++      # Generate the key-load .service unit
+++      #
+++      # Note: It is tempting to use a `<<EOF` style here-document for this, but
+++      #   bash requires a writable /tmp or $TMPDIR for that. This is not always
+++      #   available early during boot.
+++      #
+++      echo \
+++"# Automatically generated by zfs-mount-generator
+++
+++[Unit]
+++Description=Load ZFS key for ${dataset}
+++SourcePath=${cachefile}
+++Documentation=man:zfs-mount-generator(8)
+++DefaultDependencies=no
+++Wants=${wants}
+++After=${after}
+++${requires}
+++${keymountdep}
+++
+++[Service]
+++Type=oneshot
+++RemainAfterExit=yes
+++# This avoids a dependency loop involving systemd-journald.socket if this
+++# dataset is a parent of the root filesystem.
+++StandardOutput=null
+++StandardError=null
+++ExecStart=${keyloadcmd}
+++ExecStop=${keyunloadcmd}"   > "${dest_norm}/${keyloadunit}"
+++    fi
+++    # Update the dependencies for the mount file to want the
+++    # key-loading unit.
+++    wants="${wants}"
+++    bindsto="BindsTo=${keyloadunit}"
+++    after="${after} ${keyloadunit}"
+++  fi
+++
+++  # Prepare the .mount unit
+++
+++  # skip generation of the mount unit if org.openzfs.systemd:ignore is "on"
+++  if [ -n "${p_systemd_ignore}" ] ; then
+++    if [ "${p_systemd_ignore}" = "on" ] ; then
+++      return
+++    elif [ "${p_systemd_ignore}" = "-" ] \
+++      || [ "${p_systemd_ignore}" = "off" ] ; then
+++      : # This is OK
+++    else
+++      do_fail "invalid org.openzfs.systemd:ignore for ${dataset}"
+++    fi
+++  fi
+++
+++  # Check for canmount=off .
+++  if [ "${p_canmount}" = "off" ] ; then
+++    return
+++  elif [ "${p_canmount}" = "noauto" ] ; then
+++    noauto="on"
+++  elif [ "${p_canmount}" = "on" ] ; then
+++    : # This is OK
+++  else
+++    do_fail "invalid canmount for ${dataset}"
+++  fi
+++
+++  # Check for legacy and blank mountpoints.
+++  if [ "${p_mountpoint}" = "legacy" ] ; then
+++    return
+++  elif [ "${p_mountpoint}" = "none" ] ; then
+++    return
+++  elif [ "${p_mountpoint%"${p_mountpoint#?}"}" != "/" ] ; then
+++    do_fail "invalid mountpoint for ${dataset}"
+++  fi
+++
+++  # Escape the mountpoint per systemd policy.
+++  mountfile="$(systemd-escape --path --suffix=mount "${p_mountpoint}")"
+++
+++  # Parse options
+++  # see lib/libzfs/libzfs_mount.c:zfs_add_options
+++  opts=""
+++
+++  # atime
+++  if [ "${p_atime}" = on ] ; then
+++    # relatime
+++    if [ "${p_relatime}" = on ] ; then
+++      opts="${opts},atime,relatime"
+++    elif [ "${p_relatime}" = off ] ; then
+++      opts="${opts},atime,strictatime"
+++    else
+++      printf 'zfs-mount-generator: (%s) invalid relatime\n' \
+++        "${dataset}" >/dev/kmsg
+++    fi
+++  elif [ "${p_atime}" = off ] ; then
+++    opts="${opts},noatime"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid atime\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  # devices
+++  if [ "${p_devices}" = on ] ; then
+++    opts="${opts},dev"
+++  elif [ "${p_devices}" = off ] ; then
+++    opts="${opts},nodev"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid devices\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  # exec
+++  if [ "${p_exec}" = on ] ; then
+++    opts="${opts},exec"
+++  elif [ "${p_exec}" = off ] ; then
+++    opts="${opts},noexec"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid exec\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  # readonly
+++  if [ "${p_readonly}" = on ] ; then
+++    opts="${opts},ro"
+++  elif [ "${p_readonly}" = off ] ; then
+++    opts="${opts},rw"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid readonly\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  # setuid
+++  if [ "${p_setuid}" = on ] ; then
+++    opts="${opts},suid"
+++  elif [ "${p_setuid}" = off ] ; then
+++    opts="${opts},nosuid"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid setuid\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  # nbmand
+++  if [ "${p_nbmand}" = on ]  ; then
+++    opts="${opts},mand"
+++  elif [ "${p_nbmand}" = off ] ; then
+++    opts="${opts},nomand"
+++  else
+++    printf 'zfs-mount-generator: (%s) invalid nbmand\n' \
+++      "${dataset}" >/dev/kmsg
+++  fi
+++
+++  if [ -n "${p_systemd_wantedby}" ] && \
+++      [ "${p_systemd_wantedby}" != "-" ] ; then
+++    noauto="on"
+++    if [ "${p_systemd_wantedby}" = "none" ] ; then
+++      wantedby=""
+++    else
+++      wantedby="${p_systemd_wantedby}"
+++      before="${before} ${wantedby}"
+++    fi
+++  fi
+++
+++  if [ -n "${p_systemd_requiredby}" ] && \
+++      [ "${p_systemd_requiredby}" != "-" ] ; then
+++    noauto="on"
+++    if [ "${p_systemd_requiredby}" = "none" ] ; then
+++      requiredby=""
+++    else
+++      requiredby="${p_systemd_requiredby}"
+++      before="${before} ${requiredby}"
+++    fi
+++  fi
+++
+++  # For datasets with canmount=on, a dependency is created for
+++  # local-fs.target by default. To avoid regressions, this dependency
+++  # is reduced to "wants" rather than "requires" when nofail is not "off".
+++  # **THIS MAY CHANGE**
+++  # noauto=on disables this behavior completely.
+++  if [ "${noauto}" != "on" ] ; then
+++    if [ "${p_systemd_nofail}" = "off" ] ; then
+++      requiredby="local-fs.target"
+++      before="${before} local-fs.target"
+++    else
+++      wantedby="local-fs.target"
+++      if [ "${p_systemd_nofail}" != "on" ] ; then
+++        before="${before} local-fs.target"
+++      fi
+++    fi
+++  fi
+++
+++  # Handle existing files:
+++  # 1.  We never overwrite existing files, although we may delete
+++  #     files if we're sure they were created by us. (see 5.)
+++  # 2.  We handle files differently based on canmount. Units with canmount=on
+++  #     always have precedence over noauto. This is enforced by the sort pipe
+++  #     in the loop around this function.
+++  #     It is important to use $p_canmount and not $noauto here, since we
+++  #     sort by canmount while other properties also modify $noauto, e.g.
+++  #     org.openzfs.systemd:wanted-by.
+++  # 3.  If no unit file exists for a noauto dataset, we create one.
+++  #     Additionally, we use $noauto_files to track the unit file names
+++  #     (which are the systemd-escaped mountpoints) of all (exclusively)
+++  #     noauto datasets that had a file created.
+++  # 4.  If the file to be created is found in the tracking variable,
+++  #     we do NOT create it.
+++  # 5.  If a file exists for a noauto dataset, we check whether the file
+++  #     name is in the variable. If it is, we have multiple noauto datasets
+++  #     for the same mountpoint. In such cases, we remove the file for safety.
+++  #     To avoid further noauto datasets creating a file for this path again,
+++  #     we leave the file name in the tracking variable.
+++  if [ -e "${dest_norm}/${mountfile}" ] ; then
+++    if is_known "$mountfile" "$noauto_files" ; then
+++      # if it's in $noauto_files, we must be noauto too. See 2.
+++      printf 'zfs-mount-generator: removing duplicate noauto %s\n' \
+++        "${mountfile}" >/dev/kmsg
+++      # See 5.
+++      rm "${dest_norm}/${mountfile}"
+++    else
+++      # don't log for canmount=noauto
+++      if [  "${p_canmount}" = "on" ] ; then
+++        printf 'zfs-mount-generator: %s already exists. Skipping.\n' \
+++          "${mountfile}" >/dev/kmsg
+++      fi
+++    fi
+++    # file exists; Skip current dataset.
+++    return
+++  else
+++    if is_known "${mountfile}" "${noauto_files}" ; then
+++      # See 4.
+++      return
+++    elif [ "${p_canmount}" = "noauto" ] ; then
+++      noauto_files="${mountfile} ${noauto_files}"
+++    fi
+++  fi
+++
+++  # Create the .mount unit file.
+++  #
+++  # (Do not use `<<EOF`-style here-documents for this, see warning above)
+++  #
+++  echo \
+++"# Automatically generated by zfs-mount-generator
+++
+++[Unit]
+++SourcePath=${cachefile}
+++Documentation=man:zfs-mount-generator(8)
+++
+++Before=${before}
+++After=${after}
+++Wants=${wants}
+++${bindsto}
+++${requires}
+++${requiredmounts}
+++
+++[Mount]
+++Where=${p_mountpoint}
+++What=${dataset}
+++Type=zfs
+++Options=defaults${opts},zfsutil" > "${dest_norm}/${mountfile}"
+++
+++  # Finally, create the appropriate dependencies
+++  create_dependencies "${mountfile}" "wants" "$wantedby"
+++  create_dependencies "${mountfile}" "requires" "$requiredby"
+++
+++}
+++
+++for cachefile in "${FSLIST}/"* ; do
+++  # Disable glob expansion to protect against special characters when parsing.
+++  set -f
+++  # Sort cachefile's lines by canmount, "on" before "noauto"
+++  # and feed each line into process_line
+++  sort -t "$(printf '\t')" -k 3 -r "${cachefile}" | \
+++  ( # subshell is necessary for `sort|while read` and $noauto_files
+++    noauto_files=""
+++    while read -r fs ; do
+++      process_line "${fs}"
+++    done
+++  )
+++done
++-- 
++2.32.0
++
+diff --git a/patches/ubuntu/4701-enable-ARC-FILL-LOCKED-flag.patch b/patches/ubuntu/4701-enable-ARC-FILL-LOCKED-flag.patch
+deleted file mode 100644
+index 2abb015..0000000
+--- a/patches/ubuntu/4701-enable-ARC-FILL-LOCKED-flag.patch
++++ /dev/null
+@@ -1,21 +0,0 @@
+-Description: enable ARC_FILL_LOCKED in arc_buf_fill
+-  Avoid any races by enabling ARC_FILL_LOCKED during in the
+-  arc_buf_fill call chain
+-Author: Colin Ian King <colin.king@canonical.com>
+-Origin: ubuntu (LP: #1900889)
+-Forwarded: no
+-Last-Update: 2020-10-22
+-
+-Index: zfs-linux-2.0.6/module/zfs/arc.c
+-===================================================================
+---- zfs-linux-2.0.6.orig/module/zfs/arc.c
+-+++ zfs-linux-2.0.6/module/zfs/arc.c
+-@@ -2182,7 +2182,7 @@ arc_untransform(arc_buf_t *buf, spa_t *s
+-     boolean_t in_place)
+- {
+- 	int ret;
+--	arc_fill_flags_t flags = 0;
+-+	arc_fill_flags_t flags = ARC_FILL_LOCKED;
+- 
+- 	if (in_place)
+- 		flags |= ARC_FILL_IN_PLACE;
+diff --git a/patches/zzstd-version-bump.patch b/patches/zzstd-version-bump.patch
+new file mode 100644
+index 0000000..16f4875
+--- /dev/null
++++ b/patches/zzstd-version-bump.patch
+@@ -0,0 +1,20 @@
++Description: Bump zzstd.ko module version number.
++  All modules are going to be merged into one upstream soon. At the
++  moment all other modules increase with every build, but zzstd
++  one. Append zfs package version to zzstd module version number, to
++  make dkms module versions higher than kernel prebuilt ones.
++Author: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
++
++Index: zfs-linux/module/zstd/zfs_zstd.c
++===================================================================
++--- zfs-linux.orig/module/zstd/zfs_zstd.c
+++++ zfs-linux/module/zstd/zfs_zstd.c
++@@ -785,7 +785,7 @@ module_exit(zstd_fini);
++ 
++ ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
++ ZFS_MODULE_LICENSE("Dual BSD/GPL");
++-ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a");
+++ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a" "-" ZFS_META_VERSION "-" ZFS_META_RELEASE);
++ 
++ EXPORT_SYMBOL(zfs_zstd_compress);
++ EXPORT_SYMBOL(zfs_zstd_decompress_level);
+diff --git a/po/pt_BR.po b/po/pt_BR.po
+new file mode 100644
+index 0000000..cb54947
+--- /dev/null
++++ b/po/pt_BR.po
+@@ -0,0 +1,108 @@
++# Debconf translations for zfs-linux.
++# Copyright (C) 2022 THE zfs-linux'S COPYRIGHT HOLDER
++# This file is distributed under the same license as the zfs-linux package.
++# Paulo Henrique de Lima Santana (phls) <phls@debian.org>, 2022.
++#
++msgid ""
++msgstr ""
++"Project-Id-Version: zfs-linux_2.1.7-1\n"
++"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
++"POT-Creation-Date: 2021-03-30 14:43+0800\n"
++"PO-Revision-Date: 2022-12-19 12:39-0300\n"
++"Last-Translator: Paulo Henrique de Lima Santana (phls) <phls@debian.org>\n"
++"Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
++"org>\n"
++"Language: pt_BR\n"
++"MIME-Version: 1.0\n"
++"Content-Type: text/plain; charset=UTF-8\n"
++"Content-Transfer-Encoding: 8bit\n"
++"Plural-Forms: nplurals=2; plural=(n > 1)\n"
++"X-Generator: Gtranslator 42.0\n"
++
++#. Type: boolean
++#. Description
++#: ../zfs-dkms.templates:1001
++msgid "Abort building OpenZFS on a 32-bit kernel?"
++msgstr "Cancelar a construção do OpenZFS em um kernel de 32 bits?"
++
++#. Type: boolean
++#. Description
++#: ../zfs-dkms.templates:1001
++msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
++msgstr ""
++"Você está tentando compilar o OpenZFS em um kernel em execução de 32 bits."
++
++#. Type: boolean
++#. Description
++#. Type: boolean
++#. Description
++#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
++msgid ""
++"Although possible, building in a 32-bit environment is unsupported and "
++"likely to cause instability leading to possible data corruption. You are "
++"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
++"using OpenZFS on this kernel then keep in mind that it is at your own risk."
++msgstr ""
++"Embora seja possível, a construção em um ambiente de 32 bits não é suportada "
++"e provavelmente causará instabilidade, levando a uma possível corrupção de "
++"dados. É altamente recomendável usar um kernel de 64 bits; se você decidir "
++"continuar usando o OpenZFS neste kernel, lembre-se de que é por sua conta e "
++"risco."
++
++#. Type: boolean
++#. Description
++#: ../zfs-dkms.templates:2001
++msgid "Abort building OpenZFS on an unknown kernel?"
++msgstr "Cancelar a construção do OpenZFS em um kernel desconhecido?"
++
++#. Type: boolean
++#. Description
++#: ../zfs-dkms.templates:2001
++msgid ""
++"You are attempting to build OpenZFS against a running kernel that could not "
++"be identified as 32-bit or 64-bit. If you are not completely sure that the "
++"running kernel is a 64-bit one, you should probably stop the build."
++msgstr ""
++"Você está tentando compilar o OpenZFS em um kernel em execução que não pôde "
++"ser identificado como 32 ou 64 bits. Se você não tem certeza absoluta de que "
++"o kernel em execução é de 64 bits, provavelmente você deve interromper a "
++"compilação."
++
++#. Type: note
++#. Description
++#: ../zfs-dkms.templates:3001
++msgid "Licenses of OpenZFS and Linux are incompatible"
++msgstr "As licenças do OpenZFS e do Linux são incompatíveis"
++
++#. Type: note
++#. Description
++#: ../zfs-dkms.templates:3001
++msgid ""
++"OpenZFS is licensed under the Common Development and Distribution License "
++"(CDDL), and the Linux kernel is licensed under the GNU General Public "
++"License Version 2 (GPL-2). While both are free open source licenses they are "
++"restrictive licenses. The combination of them causes problems because it "
++"prevents using pieces of code exclusively available under one license with "
++"pieces of code exclusively available under the other in the same binary."
++msgstr ""
++"O OpenZFS está licenciado sob a Common Development and Distribution License "
++"(CDDL), e o kernel do Linux está licenciado sob a GNU General Public License "
++"Versão 2 (GPL-2). Embora ambas sejam licenças livres e de código aberto, "
++"elas são licenças restritivas. A combinação delas causa problemas porque "
++"previne o uso de trechos de código disponíveis exclusivamente sob uma "
++"licença com trechos de código disponíveis exclusivamente sob outra licença "
++"no mesmo binário."
++
++#. Type: note
++#. Description
++#: ../zfs-dkms.templates:3001
++msgid ""
++"You are going to build OpenZFS using DKMS in such a way that they are not "
++"going to be built into one monolithic binary. Please be aware that "
++"distributing both of the binaries in the same media (disk images, virtual "
++"appliances, etc) may lead to infringing."
++msgstr ""
++"Você vai construir o OpenZFS usando DKMS de forma que eles não sejam "
++"construídos em um binário monolítico. Esteja ciente de que a distribuição de "
++"ambos os binários na mesma mídia (imagens de disco, dispositivos virtuais "
++"etc) pode resultar em infração."
+diff --git a/rules b/rules
+index d5c9616..bebb914 100644
+--- a/rules
++++ b/rules
+@@ -7,10 +7,10 @@ NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
+ LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
+ LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
+ 
+-DKMSFILES := module config zfs.release.in autogen.sh META AUTHORS \
++DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
+ 		COPYRIGHT LICENSE README.md
+ 
+-DKMSFILESEXCLUDE := module/os/freebsd module/Makefile.bsd
++DKMSFILESEXCLUDE := include/os/freebsd module/os/freebsd module/Makefile.bsd
+ 
+ ifndef BUILD_UDEB
+ BUILD_UDEB=false
+@@ -59,7 +59,7 @@ endif
+ 	  --with-systemdunitdir=/lib/systemd/system \
+ 	  --with-systemdpresetdir=/lib/systemd/system-preset \
+ 	  --with-systemdgeneratordir=/lib/systemd/system-generators \
+-	  --with-config=all
++	  --with-config=user
+ 
+ 	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
+ 		basename "$$i" | grep _KVERS_ && continue ; \
+@@ -115,17 +115,29 @@ override_dh_auto_install:
+ 	@# Do not include FreeBSD kernel sources in the Linux DKMS package
+ 	$(foreach file,$(DKMSFILESEXCLUDE),rm -r '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' || exit 1;)
+ 	@# Only ever build Linux modules
+-	mkdir -p '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/'
+ 	echo 'SUBDIRS = linux' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/Makefile.am'
+-	echo 'aft000'
++
++	@# Hellish awk line:
++	@#  * Deletes from configure.ac the parts not needed for building the kernel module
++	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
++	@#        - Makefile$
++	@#        - include/(Makefile|sys|os/(Makefile|linux))
++	@#        - module/
++	@#        - zfs.release$
++	@#  * Takes care of spaces and tabs
++	@#  * Remove reference to ZFS_AC_PACKAGE
++	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
++		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
++		{next} } {print}' \
++		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
+ 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
+-	@# Do not regenerate zfs_gitrev.h during dkms build	
++	@# Do not regenerate zfs_gitrev.h during dkms build
+ 	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
+ 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+ 	@# Sanity test
+ 	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
+-	@# Run autogen on the stripped source tree      
+-	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'
++	@# Run autogen on the stripped source tree
++	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
+ 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
+ 
+ 	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
+@@ -187,6 +199,7 @@ override_dh_missing:
+ override_dh_installinit:
+ 	dh_installinit -r --no-restart-after-upgrade --name zfs-import
+ 	dh_installinit -r --no-restart-after-upgrade --name zfs-mount
++	dh_installinit -r --no-restart-after-upgrade --name zfs-load-key
+ 	dh_installinit -R --name zfs-share
+ 	dh_installinit -R --name zfs-zed
+ 
+diff --git a/source/lintian-overrides b/source/lintian-overrides
+index 511c114..3ede698 100644
+--- a/source/lintian-overrides
++++ b/source/lintian-overrides
+@@ -1 +1,4 @@
+-source: excessive-debhelper-overrides
++excessive-debhelper-overrides
++patch-file-present-but-not-mentioned-in-series [debian/patches/ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch]
++patch-file-present-but-not-mentioned-in-series [debian/patches/ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch]
++unknown-field Autobuild
+diff --git a/tests/control b/tests/control
+index 0c0dde6..f4cfb21 100644
+--- a/tests/control
++++ b/tests/control
+@@ -13,6 +13,8 @@ Depends: fakeroot,
+          linux-headers-686 [i386],
+          linux-headers-arm64 [arm64],
+          linux-headers-armmp [armhf],
++         linux-headers-rpi [armel],
+          linux-headers-powerpc64le [ppc64el],
+          linux-headers-s390x [s390x],
++         linux-headers-riscv64 [riscv64],
+          @builddeps@
+diff --git a/tests/sbuild-shell-bullseye-to-bookworm.sh b/tests/sbuild-shell-bullseye-to-bookworm.sh
+new file mode 100644
+index 0000000..0447deb
+--- /dev/null
++++ b/tests/sbuild-shell-bullseye-to-bookworm.sh
+@@ -0,0 +1,24 @@
++# This scripts aims to test the ZFS upgrade from bullseye -> bookworm
++# run the script within sbuild-shell environment, e.g.
++#
++#   $ sudo sbuild-shell chroot:bullseye-amd64-sbuild
++#
++# Note, remember to set union-type to "none" for the specified schroot env,
++# or usrmerge will cause lots of trouble.
++
++# install zfs from stable
++echo "deb http://deb.debian.org/debian bullseye main contrib non-free" > /etc/apt/sources.list
++apt update -y
++apt upgrade -y
++apt install eatmydata -y
++eatmydata -- apt install vim fish -y
++eatmydata -- apt install linux-image-amd64 linux-headers-amd64 linux-libc-dev dkms -y
++eatmydata -- apt install zfsutils-linux -y
++find /usr/lib/modules | grep zfs
++
++# upgrade to unstable (bookworm)
++echo "deb http://deb.debian.org/debian unstable main contrib non-free" > /etc/apt/sources.list
++eatmydata -- apt update -y
++eatmydata -- apt dist-upgrade -y
++eatmydata -- apt autoremove -y
++find /usr/lib/modules | grep zfs
+diff --git a/tree/zfsutils-linux/usr/lib/zfs-linux/trim b/tree/zfsutils-linux/usr/lib/zfs-linux/trim
+index 5b6305b..a807ecc 100644
+--- a/tree/zfsutils-linux/usr/lib/zfs-linux/trim
++++ b/tree/zfsutils-linux/usr/lib/zfs-linux/trim
+@@ -1,4 +1,4 @@
+-#!/bin/sh -eu
++#!/bin/sh -u
+ 
+ # directly exit successfully when zfs module is not loaded
+ if ! [ -d /sys/module/zfs ]; then
+@@ -14,47 +14,56 @@ get_property () {
+ 	# since they're not available on pools https://github.com/openzfs/zfs/pull/11680
+ 	# TODO: use zpool user-defined property when such feature is available.
+ 	pool="$1"
+-	zfs get -H -o value "${PROPERTY_NAME}" "${pool}" 2>/dev/null || return 1
++	zfs get -H -o value "${PROPERTY_NAME}" "${pool}" 2>/dev/null
+ }
+ 
+ trim_if_not_already_trimming () {
+ 	pool="$1"
+ 	if ! zpool status "${pool}" | grep -q "trimming"; then
+-		# Ignore errors (i.e. HDD pools),
+-		# and continue with trimming other pools.
+-		zpool trim "${pool}" || true
++		# This will error on HDD-only pools: doesn't matter
++		zpool trim "${pool}"
+ 	fi
+ }
+ 
+-zpool_is_nvme_only () {
+-	zpool=$1
+-	# get a list of devices attached to the specified zpool
+-	zpool list -vHPL "${zpool}" |
+-		awk -F'\t' '$2 ~ /^\/dev\// {
+-			if($2 !~ /^\/dev\/nvme/)
+-				exit 1
+-		}'
++# Walk up the kernel parent names:
++# this will catch devices from LVM &a.
++get_transp () {
++	dev="$1"
++	while pd="$(lsblk -dnr -o PKNAME "$dev")"; do
++		if [ -z "$pd" ]; then
++			break
++		else
++			dev="/dev/$pd"
++		fi
++	done
++	lsblk -dnr -o TRAN "$dev"
++}
++
++pool_is_nvme_only () {
++	pool="$1"
++	# get a list of devices attached to the specified pool
++	zpool list -vHP "${pool}" | \
++		awk -F'\t' '$2 ~ "^/dev/" {print $2}' | \
++	while read -r dev
++	do
++		[ "$(get_transp "$dev")" = "nvme" ] || return
++	done
+ }
+ 
+ # TRIM all healthy pools that are not already trimming as per their configs.
+ zpool list -H -o health,name 2>&1 | \
+ 	awk -F'\t' '$1 == "ONLINE" {print $2}' | \
+-while read pool
++while read -r pool
+ do
+ 	# read user-defined config
+-	ret=$(get_property "${pool}")
+-	if [ $? -ne 0 ] || [ "disable" = "${ret}" ]; then
+-		:
+-	elif [ "enable" = "${ret}" ]; then
+-		trim_if_not_already_trimming "${pool}"
+-	elif [ "-" = "${ret}" ] || [ "auto" = "${ret}" ]; then
+-		if zpool_is_nvme_only "${pool}"; then
+-			trim_if_not_already_trimming "${pool}"
+-		fi
+-	else
+-		cat > /dev/stderr <<EOF
++	ret=$(get_property "${pool}") || continue
++	case "${ret}" in
++		disable);;
++		enable)	trim_if_not_already_trimming "${pool}" ;;
++		-|auto)	if pool_is_nvme_only "${pool}"; then trim_if_not_already_trimming "${pool}"; fi ;;
++		*)	cat > /dev/stderr <<EOF
+ $0: [WARNING] illegal value "${ret}" for property "${PROPERTY_NAME}" of ZFS dataset "${pool}".
+ $0: Acceptable choices for this property are: auto, enable, disable. The default is auto.
+ EOF
+-	fi
++	esac
+ done
+diff --git a/zfs-dkms.lintian-overrides b/zfs-dkms.lintian-overrides
+index 4c7ecfe..ff2f2de 100644
+--- a/zfs-dkms.lintian-overrides
++++ b/zfs-dkms.lintian-overrides
+@@ -1,6 +1,6 @@
+ binary-package-depends-on-toolchain-package Suggests: debhelper
+-extra-license-file usr/share/doc/zfs-dkms/LICENSE.gz
+-extra-license-file usr/src/zfs-*/LICENSE
+-package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/LICENSE
+-package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/README.md
+-package-contains-documentation-outside-usr-share-doc usr/src/zfs-*/COPYRIGHT
++extra-license-file [usr/share/doc/zfs-dkms/LICENSE.gz]
++extra-license-file [usr/src/zfs-*/LICENSE]
++package-contains-documentation-outside-usr-share-doc [usr/src/zfs-*/COPYRIGHT]
++package-contains-documentation-outside-usr-share-doc [usr/src/zfs-*/LICENSE]
++package-contains-documentation-outside-usr-share-doc [usr/src/zfs-*/README.md]
+diff --git a/zfs-dracut.install b/zfs-dracut.install
+index d91c734..8c2bf1b 100644
+--- a/zfs-dracut.install
++++ b/zfs-dracut.install
+@@ -1 +1,2 @@
+ usr/lib/dracut
++usr/share/man/man7/dracut.zfs.7
+diff --git a/zfs-test.lintian-overrides b/zfs-test.lintian-overrides
+index d5e8df3..350fcae 100644
+--- a/zfs-test.lintian-overrides
++++ b/zfs-test.lintian-overrides
+@@ -2,9 +2,9 @@ arch-dependent-file-in-usr-share
+ command-in-sbin-has-manpage-in-incorrect-section
+ arch-dep-package-has-big-usr-share
+ manpage-without-executable
+-national-encoding usr/share/zfs/zfs-tests/tests/functional/channel_program/lua_core/tst.lib_table.lua
+-executable-not-elf-or-script usr/share/zfs/zfs-tests/tests/functional/cli_root/zfs_jail/jail.conf
+-package-contains-documentation-outside-usr-share-doc usr/share/zfs/zfs-tests/*
++national-encoding [usr/share/zfs/zfs-tests/tests/functional/channel_program/lua_core/tst.lib_table.lua]
++executable-not-elf-or-script [usr/share/zfs/zfs-tests/tests/functional/cli_root/zfs_jail/jail.conf]
++package-contains-documentation-outside-usr-share-doc [usr/share/zfs/zfs-tests/*]
+ script-not-executable [usr/share/zfs/common.sh]
+ script-not-executable [usr/share/zfs/zfs-tests/include/default.cfg]
+ script-not-executable [usr/share/zfs/zfs-tests/tests/functional/cli_root/zfs_wait/zfs_wait.kshlib]
+diff --git a/zfsutils-linux.install b/zfsutils-linux.install
+index 14f0cf5..d6f986b 100644
+--- a/zfsutils-linux.install
++++ b/zfsutils-linux.install
+@@ -6,8 +6,9 @@ lib/systemd/system-generators/
+ lib/systemd/system-preset/
+ lib/systemd/system/zfs-import-cache.service
+ lib/systemd/system/zfs-import-scan.service
+-lib/systemd/system/zfs-load-key.service
+ lib/systemd/system/zfs-import.target
++lib/systemd/system/zfs-load-key.service
++lib/systemd/system/zfs-load-module.service
+ lib/systemd/system/zfs-mount.service
+ lib/systemd/system/zfs-scrub-monthly@.timer
+ lib/systemd/system/zfs-scrub-weekly@.timer
+@@ -36,11 +37,10 @@ usr/sbin/arcstat
+ usr/sbin/dbufstat
+ usr/share/zfs/compatibility.d/
+ usr/share/bash-completion/completions
++usr/share/man/man1/arcstat.1
+ usr/share/man/man1/zhack.1
+ usr/share/man/man1/zvol_wait.1
+-usr/share/man/man1/arcstat.1
+ usr/share/man/man5/
+-usr/share/man/man7/dracut.zfs.7
+ usr/share/man/man8/fsck.zfs.8
+ usr/share/man/man8/mount.zfs.8
+ usr/share/man/man8/vdev_id.8
+diff --git a/zfsutils-linux.links b/zfsutils-linux.links
+new file mode 100644
+index 0000000..adb63c1
+--- /dev/null
++++ b/zfsutils-linux.links
+@@ -0,0 +1,3 @@
++sbin/zfs      bin/zfs
++sbin/zpool    bin/zpool
++usr/lib/zfs-linux/zpool_influxdb  bin/zpool_influxdb
+diff --git a/zfsutils-linux.lintian-overrides b/zfsutils-linux.lintian-overrides
+index 018d46f..6328136 100644
+--- a/zfsutils-linux.lintian-overrides
++++ b/zfsutils-linux.lintian-overrides
+@@ -1,15 +1,17 @@
+-spare-manual-page
+-init.d-script-does-not-source-init-functions
+-systemd-service-file-refers-to-unusual-wantedby-target
+-binary-without-manpage usr/sbin/dbufstat
+-binary-without-manpage usr/sbin/arc_summary
+-manpage-has-errors-from-man
+ appstream-metadata-missing-modalias-provide
+-command-in-sbin-has-manpage-in-incorrect-section
+-package-supports-alternative-init-but-no-init.d-script lib/systemd/system/zfs-import-cache.service
+-package-supports-alternative-init-but-no-init.d-script lib/systemd/system/zfs-import-scan.service
++binary-without-manpage [usr/sbin/arc_summary]
++binary-without-manpage [usr/sbin/dbufstat]
+ breaks-without-version openrc
++command-in-sbin-has-manpage-in-incorrect-section
++extra-license-file [usr/share/doc/zfsutils-linux/LICENSE.gz]
++init.d-script-does-not-source-init-functions
++manpage-has-errors-from-man
++omitted-systemd-service-for-init.d-script zfs-load-key [etc/init.d/zfs-load-key]
++package-supports-alternative-init-but-no-init.d-script [lib/systemd/system/zfs-import-cache.service]
++package-supports-alternative-init-but-no-init.d-script [lib/systemd/system/zfs-import-scan.service]
++package-supports-alternative-init-but-no-init.d-script [lib/systemd/system/zfs-load-module.service]
++package-supports-alternative-init-but-no-init.d-script [lib/systemd/system/zfs-volume-wait.service]
++spare-manual-page
+ spelling-error-in-manpage
+-package-supports-alternative-init-but-no-init.d-script lib/systemd/system/zfs-volume-wait.service
+-extra-license-file usr/share/doc/zfsutils-linux/LICENSE.gz
+-package-supports-alternative-init-but-no-init.d-script lib/systemd/system/zfs-load-module.service
++systemd-service-file-refers-to-unusual-wantedby-target
++mismatched-override
+diff --git a/zfsutils-linux.zfs-load-key.init b/zfsutils-linux.zfs-load-key.init
+new file mode 100644
+index 0000000..3f3e97f
+--- /dev/null
++++ b/zfsutils-linux.zfs-load-key.init
+@@ -0,0 +1 @@
++../etc/init.d/zfs-load-key
+\ No newline at end of file

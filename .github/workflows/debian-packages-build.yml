@@ -44,7 +44,7 @@ jobs:
           cp ../*.deb ./zfs-deb-packages
           ls ./zfs-deb-packages -al
       - name: cache created packages
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/zfs/zfs-deb-packages
           key: ${{ runner.OS }}-zfs-${{ github.sha }}
