@@ -1,18 +1,18 @@
-From 7bd15ecbe899cb7362db651ee67ee195497dd9c2 Mon Sep 17 00:00:00 2001
+From f3032b43d6d082f65fec013649e18499dec763f7 Mon Sep 17 00:00:00 2001
 From: Prokopenko Andrey <andrey.prokopenko@allianz.at>
-Date: Wed, 19 Apr 2023 15:29:43 +0200
-Subject: [PATCH] updated known to skip
+Date: Wed, 19 Apr 2023 15:40:17 +0200
+Subject: [PATCH] set tests to skip
 
 ---
  tests/test-runner/bin/zts-report.py.in | 20 ++++++++++++++++++++
  1 file changed, 20 insertions(+)
 
 diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
-index f3cfca912..9155a67b2 100755
+index 432899c21..dcd63c410 100755
 --- a/tests/test-runner/bin/zts-report.py.in
 +++ b/tests/test-runner/bin/zts-report.py.in
-@@ -282,6 +282,26 @@ elif sys.platform.startswith('linux'):
-         'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
+@@ -291,6 +291,26 @@ elif sys.platform.startswith('linux'):
+         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
      })
  
 +    known.update({
