@@ -10,10 +10,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  EdonRHash@Base 0.8.2
  EdonRInit@Base 0.8.2
  EdonRUpdate@Base 0.8.2
- HIST_isError@Base 2.0
- SHA1Final@Base 0.8.2
- SHA1Init@Base 0.8.2
- SHA1Update@Base 0.8.2
  SHA256Init@Base 0.8.2
  (arch=amd64)SHA256TransformBlocks@Base 0.8.2
  SHA2Final@Base 0.8.2
@@ -257,6 +253,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  bpobj_iterate@Base 0.8.2
  bpobj_iterate_nofree@Base 0.8.2
  bpobj_open@Base 0.8.2
+ bpobj_prefetch_subobj@Base 2.1.9
  bpobj_space@Base 0.8.2
  bpobj_space_range@Base 0.8.2
  bptree_add@Base 0.8.2
@@ -380,6 +377,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  dbuf_hold_impl@Base 0.8.2
  dbuf_hold_level@Base 0.8.2
  dbuf_init@Base 0.8.2
+ dbuf_is_l2cacheable@Base 2.1.6
  dbuf_is_metadata@Base 0.8.2
  dbuf_ksp@Base 0.8.2
  dbuf_loan_arcbuf@Base 0.8.2
@@ -947,6 +945,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  dsl_pool_init@Base 0.8.2
  dsl_pool_mos_diduse_space@Base 0.8.2
  dsl_pool_need_dirty_delay@Base 0.8.2
+ dsl_pool_need_wrlog_delay@Base 2.1.6
  dsl_pool_open@Base 0.8.2
  dsl_pool_open_special_dir@Base 0.8.2
  dsl_pool_rele@Base 0.8.2
@@ -960,6 +959,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  dsl_pool_upgrade_dir_clones@Base 0.8.2
  dsl_pool_user_hold@Base 0.8.2
  dsl_pool_user_release@Base 0.8.2
+ dsl_pool_wrlog_count@Base 2.1.6
  dsl_pool_zrele_taskq@Base 2.0
  dsl_process_sub_livelist@Base 2.0
  dsl_prop_fini@Base 0.8.2
@@ -1205,6 +1205,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  kstat_set_raw_ops@Base 0.8.2
  l2arc_add_vdev@Base 0.8.2
  l2arc_dev_hdr_update@Base 2.0
+ l2arc_exclude_special@Base 2.1.6
  l2arc_feed_again@Base 0.8.2
  l2arc_feed_min_ms@Base 0.8.2
  l2arc_feed_secs@Base 0.8.2
@@ -1380,7 +1381,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  lzjb_compress@Base 0.8.2
  lzjb_decompress@Base 0.8.2
  max_disabled_ms@Base 0.8.2
- metaslab_aliquot@Base 0.8.2
  metaslab_alloc@Base 0.8.2
  metaslab_alloc_dva@Base 0.8.2
  metaslab_alloc_trace_cache@Base 2.1
@@ -1444,6 +1444,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  metaslab_preload_limit@Base 0.8.2
  metaslab_recalculate_weight_and_sort@Base 0.8.2
  metaslab_set_selected_txg@Base 2.0
+ metaslab_set_unflushed_dirty@Base 2.1.6
  metaslab_set_unflushed_txg@Base 2.0
  metaslab_sort_by_flushed@Base 2.0
  metaslab_space_update@Base 2.0
@@ -1457,7 +1458,9 @@ libzpool.so.5 libzpool5linux #MINVER#
  metaslab_trace_init@Base 0.8.2
  metaslab_trace_max_entries@Base 2.1
  metaslab_unalloc_dva@Base 0.8.2
+ metaslab_unflushed_bump@Base 2.1.6
  metaslab_unflushed_changes_memused@Base 2.0
+ metaslab_unflushed_dirty@Base 2.1.6
  metaslab_unflushed_txg@Base 2.0
  metaslab_unload@Base 0.8.2
  metaslab_unload_delay@Base 0.8.2
@@ -1574,7 +1577,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  range_tree_clear@Base 0.8.2
  range_tree_contains@Base 0.8.2
  range_tree_create@Base 0.8.2
- range_tree_create_impl@Base 0.8.2
+ range_tree_create_gap@Base 2.1.6
  range_tree_destroy@Base 0.8.2
  range_tree_find@Base 0.8.2
  range_tree_find_in@Base 2.0
@@ -1622,12 +1625,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  rrw_init@Base 0.8.2
  rrw_tsd_destroy@Base 0.8.2
  rrw_tsd_key@Base 0.8.2
- rt_btree_add@Base 2.0
- rt_btree_create@Base 2.0
- rt_btree_destroy@Base 2.0
- rt_btree_ops@Base 2.0
- rt_btree_remove@Base 2.0
- rt_btree_vacate@Base 2.0
  rw_destroy@Base 0.8.2
  rw_enter@Base 0.8.2
  rw_exit@Base 0.8.2
@@ -1678,9 +1675,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  send_holes_without_birth_time@Base 0.8.2
  seq_printf@Base 0.8.2
  set_global_var@Base 0.8.2
- (arch=amd64)sha1_block_data_order@Base 0.8.2
- sha1_mod_fini@Base 0.8.2
- sha1_mod_init@Base 0.8.2
  sha2_mod_fini@Base 0.8.2
  sha2_mod_init@Base 0.8.2
  show_pool_stats@Base 0.8.2
@@ -1864,6 +1858,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  spa_log_summary_add_flushed_metaslab@Base 2.0
  spa_log_summary_decrement_blkcount@Base 2.0
  spa_log_summary_decrement_mscount@Base 2.0
+ spa_log_summary_dirty_flushed_metaslab@Base 2.1.6
  spa_lookup@Base 0.8.2
  spa_lookup_by_guid@Base 0.8.2
  spa_max_replication@Base 0.8.2
@@ -1880,6 +1875,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  spa_mmp_history_set_skip@Base 0.8.2
  spa_mode@Base 0.8.2
  spa_mode_global@Base 0.8.2
+ spa_mode_readable_spacemaps@Base 2.1.5
  spa_multihost@Base 0.8.2
  spa_name@Base 0.8.2
  spa_namespace_lock@Base 0.8.2
@@ -2088,6 +2084,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  vdev_autotrim_restart@Base 0.8.2
  vdev_autotrim_stop_all@Base 0.8.2
  vdev_autotrim_stop_wait@Base 0.8.2
+ vdev_best_ashift@Base 2.1.6
  vdev_cache_fini@Base 0.8.2
  vdev_cache_init@Base 0.8.2
  vdev_cache_purge@Base 0.8.2
@@ -2377,7 +2374,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  zap_lookup_uint64@Base 0.8.2
  zap_match@Base 0.8.2
  zap_maxcd@Base 0.8.2
- zap_name_alloc@Base 0.8.2
+ zap_name_alloc_str@Base 2.1.9
  zap_name_free@Base 0.8.2
  zap_prefetch@Base 0.8.2
  zap_prefetch_uint64@Base 0.8.2
@@ -2394,6 +2391,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  zap_value_search@Base 0.8.2
  zbookmark_compare@Base 0.8.2
  zbookmark_subtree_completed@Base 0.8.2
+ zbookmark_subtree_tbd@Base 2.1.6
  zcp_argerror@Base 0.8.2
  zcp_cleanup@Base 0.8.2
  zcp_dataset_hold@Base 0.8.2
@@ -2423,7 +2421,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  zfetch_max_distance@Base 0.8.2
  zfetch_max_idistance@Base 0.8.2
  zfetch_max_streams@Base 0.8.2
- zfetch_min_sec_reap@Base 0.8.2
  zfetch_sums@Base 2.1
  zfs_ERR_getErrorString@Base 2.0
  zfs_FSE_NCountWriteBound@Base 2.0
@@ -2459,6 +2456,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  zfs_HIST_countFast_wksp@Base 2.0
  zfs_HIST_count_simple@Base 2.0
  zfs_HIST_count_wksp@Base 2.0
+ zfs_HIST_isError@Base 2.1.5
  zfs_HUF_buildCTable@Base 2.0
  zfs_HUF_buildCTable_wksp@Base 2.0
  zfs_HUF_compress1X@Base 2.0
@@ -2789,6 +2787,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  zfs_btree_add_idx@Base 2.0
  zfs_btree_clear@Base 2.0
  zfs_btree_create@Base 2.0
+ zfs_btree_create_custom@Base 2.1.9
  zfs_btree_destroy@Base 2.0
  zfs_btree_destroy_nodes@Base 2.0
  zfs_btree_find@Base 2.0
@@ -3068,7 +3067,6 @@ libzpool.so.5 libzpool5linux #MINVER#
  zfs_trim_txg_batch@Base 0.8.2
  zfs_txg_history@Base 0.8.2
  zfs_txg_timeout@Base 0.8.2
- zfs_unflushed_log_block_max@Base 2.0
  zfs_unflushed_log_block_min@Base 2.0
  zfs_unflushed_log_block_pct@Base 2.0
  zfs_unflushed_max_mem_amt@Base 2.0
@@ -3117,6 +3115,7 @@ libzpool.so.5 libzpool5linux #MINVER#
  zfs_vdev_trim_max_active@Base 0.8.2
  zfs_vdev_trim_min_active@Base 0.8.2
  zfs_vdev_write_gap_limit@Base 0.8.2
+ zfs_wrlog_data_max@Base 2.1.6
  zfs_zil_clean_taskq_maxalloc@Base 0.8.2
  zfs_zil_clean_taskq_minalloc@Base 0.8.2
  zfs_zil_clean_taskq_nthr_pct@Base 0.8.2

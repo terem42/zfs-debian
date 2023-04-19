@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 10),
                dkms (>> 2.1.1.2-5),
                libtool,
                linux-headers-_KVERS_
-Standards-Version: 4.3.0
+Standards-Version: 4.6.2
 Homepage: http://www.zfsonlinux.org/
 Vcs-Git: https://salsa.debian.org/zfsonlinux-team/zfs.git
 Vcs-Browser: https://salsa.debian.org/zfsonlinux-team/zfs

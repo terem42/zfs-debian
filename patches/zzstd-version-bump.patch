@@ -1,0 +1,20 @@
+Description: Bump zzstd.ko module version number.
+  All modules are going to be merged into one upstream soon. At the
+  moment all other modules increase with every build, but zzstd
+  one. Append zfs package version to zzstd module version number, to
+  make dkms module versions higher than kernel prebuilt ones.
+Author: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
+
+Index: zfs-linux/module/zstd/zfs_zstd.c
+===================================================================
+--- zfs-linux.orig/module/zstd/zfs_zstd.c
++++ zfs-linux/module/zstd/zfs_zstd.c
+@@ -785,7 +785,7 @@ module_exit(zstd_fini);
+ 
+ ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
+ ZFS_MODULE_LICENSE("Dual BSD/GPL");
+-ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a");
++ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a" "-" ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ 
+ EXPORT_SYMBOL(zfs_zstd_compress);
+ EXPORT_SYMBOL(zfs_zstd_decompress_level);

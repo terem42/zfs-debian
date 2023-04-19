@@ -1,0 +1,95 @@
+From f18e083bf8ce0c0d1997002f9986122be6d4ebe8 Mon Sep 17 00:00:00 2001
+From: George Wilson <george.wilson@delphix.com>
+Date: Thu, 2 Feb 2023 18:11:35 -0500
+Subject: [PATCH] rootdelay on zfs should be adaptive
+
+The 'rootdelay' boot option currently pauses the boot for a specified
+amount of time. The original intent was to ensure that slower
+configurations would have ample time to enumerate the devices to make
+importing the root pool successful. This, however, causes unnecessary
+boot delay for environments like Azure which set this parameter by
+default.
+
+This commit changes the initramfs logic to pause until it can
+successfully load the 'zfs' module. The timeout specified by
+'rootdelay' now becomes the maximum amount of time that initramfs will
+wait before failing the boot.
+
+Reviewed-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Reviewed-by: Prakash Surya <prakash.surya@delphix.com>
+Signed-off-by: George Wilson <gwilson@delphix.com>
+Closes #14430
+---
+ contrib/initramfs/scripts/zfs | 54 +++++++++++++++++++++++------------
+ 1 file changed, 35 insertions(+), 19 deletions(-)
+
+Index: zfs/contrib/initramfs/scripts/zfs
+===================================================================
+--- zfs.orig/contrib/initramfs/scripts/zfs
++++ zfs/contrib/initramfs/scripts/zfs
+@@ -270,30 +270,46 @@ import_pool()
+ # with more logging etc.
+ load_module_initrd()
+ {
+-	[ -n "$ROOTDELAY" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP="$ROOTDELAY"
++	ZFS_INITRD_PRE_MOUNTROOT_SLEEP=${ROOTDELAY:-0}
+ 
+-	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ] 2>/dev/null
+-	then
+-		if [ "$quiet" != "y" ]; then
+-			zfs_log_begin_msg "Sleeping for" \
+-				"$ZFS_INITRD_PRE_MOUNTROOT_SLEEP seconds..."
+-		fi
+-		sleep "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP"
+-		[ "$quiet" != "y" ] && zfs_log_end_msg
++	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
++		[ "$quiet" != "y" ] && zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
+ 	fi
+ 
+-	# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
+-	if command -v wait_for_udev > /dev/null 2>&1 ; then
+-		wait_for_udev 10
+-	elif command -v wait_for_dev > /dev/null 2>&1 ; then
+-		wait_for_dev
+-	fi
++	START=$(/bin/date -u +%s)
++	END=$((START+ZFS_INITRD_PRE_MOUNTROOT_SLEEP))
++	while true; do
++
++		# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
++		if command -v wait_for_udev > /dev/null 2>&1 ; then
++			wait_for_udev 10
++		elif command -v wait_for_dev > /dev/null 2>&1 ; then
++			wait_for_dev
++		fi
+ 
+-	# zpool import refuse to import without a valid /proc/self/mounts
+-	[ ! -f /proc/self/mounts ] && mount proc /proc
++		#
++		# zpool import refuse to import without a valid
++		# /proc/self/mounts
++		#
++		[ ! -f /proc/self/mounts ] && mount proc /proc
++
++		# Load the module
++		if load_module "zfs"; then
++			ret=0
++			break
++		else
++			ret=1
++		fi
++
++		[ "$(/bin/date -u +%s)" -gt "$END" ] && break
++		sleep 1
++
++	done
++	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ]; then
++		[ "$quiet" != "y" ] && zfs_log_end_msg
++	fi
+ 
+-	# Load the module
+-	load_module "zfs" || return 1
++	[ "$ret" -ne 0 ] && return 1
+ 
+ 	if [ "$ZFS_INITRD_POST_MODPROBE_SLEEP" -gt 0 ] 2>/dev/null
+ 	then

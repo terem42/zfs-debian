@@ -8,7 +8,7 @@ Uploaders: Aron Xu <aron@debian.org>,
 Build-Depends: abigail-tools (>= 1.8),
                debhelper-compat (= 12),
                dh-python,
-               dkms (>> 2.1.1.2-5),
+               dh-sequence-dkms,
                libaio-dev,
                libblkid-dev,
                libcurl4-openssl-dev,
@@ -25,7 +25,7 @@ Build-Depends: abigail-tools (>= 1.8),
                python3-sphinx,
                uuid-dev,
                zlib1g-dev
-Standards-Version: 4.5.1
+Standards-Version: 4.6.2
 Homepage: https://zfsonlinux.org/
 Vcs-Git: https://salsa.debian.org/zfsonlinux-team/zfs.git
 Vcs-Browser: https://salsa.debian.org/zfsonlinux-team/zfs
@@ -76,7 +76,8 @@ Description: Solaris userland utility library for Linux
 Package: libzfslinux-dev
 Section: contrib/libdevel
 Architecture: linux-any
-Depends: libssl-dev | libssl1.0-dev,
+Depends: libblkid-dev,
+         libssl-dev | libssl1.0-dev,
          libnvpair3linux (= ${binary:Version}),
          libuutil3linux (= ${binary:Version}),
          libzfs4linux (= ${binary:Version}),
@@ -240,7 +241,7 @@ Depends: libnvpair3linux (= ${binary:Version}),
          python3,
          ${misc:Depends},
          ${shlibs:Depends}
-Recommends: lsb-base, zfs-modules | zfs-dkms, zfs-zed
+Recommends: zfs-modules | zfs-dkms, zfs-zed
 Breaks: openrc,
         spl (<< 0.7.9-2),
         spl-dkms (<< 0.8.0~rc1),

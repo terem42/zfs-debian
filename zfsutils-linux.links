@@ -1,0 +1,3 @@
+sbin/zfs      bin/zfs
+sbin/zpool    bin/zpool
+usr/lib/zfs-linux/zpool_influxdb  bin/zpool_influxdb

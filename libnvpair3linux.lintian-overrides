@@ -1,2 +1,2 @@
 package-name-doesnt-match-sonames
-extra-license-file usr/share/doc/libnvpair3linux/LICENSE.gz
+extra-license-file [usr/share/doc/libnvpair3linux/LICENSE.gz]

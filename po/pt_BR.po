@@ -1,0 +1,108 @@
+# Debconf translations for zfs-linux.
+# Copyright (C) 2022 THE zfs-linux'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the zfs-linux package.
+# Paulo Henrique de Lima Santana (phls) <phls@debian.org>, 2022.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux_2.1.7-1\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2021-03-30 14:43+0800\n"
+"PO-Revision-Date: 2022-12-19 12:39-0300\n"
+"Last-Translator: Paulo Henrique de Lima Santana (phls) <phls@debian.org>\n"
+"Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
+"org>\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1)\n"
+"X-Generator: Gtranslator 42.0\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building OpenZFS on a 32-bit kernel?"
+msgstr "Cancelar a construção do OpenZFS em um kernel de 32 bits?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build OpenZFS against a 32-bit running kernel."
+msgstr ""
+"Você está tentando compilar o OpenZFS em um kernel em execução de 32 bits."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using OpenZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Embora seja possível, a construção em um ambiente de 32 bits não é suportada "
+"e provavelmente causará instabilidade, levando a uma possível corrupção de "
+"dados. É altamente recomendável usar um kernel de 64 bits; se você decidir "
+"continuar usando o OpenZFS neste kernel, lembre-se de que é por sua conta e "
+"risco."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building OpenZFS on an unknown kernel?"
+msgstr "Cancelar a construção do OpenZFS em um kernel desconhecido?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build OpenZFS against a running kernel that could not "
+"be identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Você está tentando compilar o OpenZFS em um kernel em execução que não pôde "
+"ser identificado como 32 ou 64 bits. Se você não tem certeza absoluta de que "
+"o kernel em execução é de 64 bits, provavelmente você deve interromper a "
+"compilação."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of OpenZFS and Linux are incompatible"
+msgstr "As licenças do OpenZFS e do Linux são incompatíveis"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"OpenZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"O OpenZFS está licenciado sob a Common Development and Distribution License "
+"(CDDL), e o kernel do Linux está licenciado sob a GNU General Public License "
+"Versão 2 (GPL-2). Embora ambas sejam licenças livres e de código aberto, "
+"elas são licenças restritivas. A combinação delas causa problemas porque "
+"previne o uso de trechos de código disponíveis exclusivamente sob uma "
+"licença com trechos de código disponíveis exclusivamente sob outra licença "
+"no mesmo binário."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build OpenZFS using DKMS in such a way that they are not "
+"going to be built into one monolithic binary. Please be aware that "
+"distributing both of the binaries in the same media (disk images, virtual "
+"appliances, etc) may lead to infringing."
+msgstr ""
+"Você vai construir o OpenZFS usando DKMS de forma que eles não sejam "
+"construídos em um binário monolítico. Esteja ciente de que a distribuição de "
+"ambos os binários na mesma mídia (imagens de disco, dispositivos virtuais "
+"etc) pode resultar em infração."

@@ -3,8 +3,10 @@ Author: Andreas Beckmann <anbe@debian.org>
 Bug-Debian: https://bugs.debian.org/981212
 Bug: https://github.com/openzfs/zfs/issues/11097
 
---- a/scripts/dkms.mkconf
-+++ b/scripts/dkms.mkconf
+Index: zfs-linux/scripts/dkms.mkconf
+===================================================================
+--- zfs-linux.orig/scripts/dkms.mkconf
++++ zfs-linux/scripts/dkms.mkconf
 @@ -25,6 +25,12 @@ PACKAGE_NAME="${pkgname}"
  PACKAGE_VERSION="${pkgver}"
  PACKAGE_CONFIG="${pkgcfg}"

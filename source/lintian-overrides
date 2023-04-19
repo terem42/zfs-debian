@@ -1,1 +1,4 @@
-source: excessive-debhelper-overrides
+excessive-debhelper-overrides
+patch-file-present-but-not-mentioned-in-series [debian/patches/ubuntu/0001-Revert-etc-systemd-zfs-mount-generator-output-tweaks.patch]
+patch-file-present-but-not-mentioned-in-series [debian/patches/ubuntu/0002-Revert-etc-systemd-zfs-mount-generator-rewrite-in-C.patch]
+unknown-field Autobuild

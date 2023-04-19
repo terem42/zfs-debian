@@ -19,7 +19,7 @@ Index: zfs-linux/etc/systemd/system/zfs-zed.service.in
  [Service]
 -ExecStart=@sbindir@/zed -F
 +ExecStart=/usr/sbin/zed -F
- Restart=on-abort
+ Restart=always
  
  [Install]
 Index: zfs-linux/etc/zfs/zfs-functions.in

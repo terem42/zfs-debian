@@ -28,7 +28,7 @@ Index: zfs-linux/cmd/zvol_wait/zvol_wait
  list_zvols() {
  	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
  	zfs list -t volume -H -o \
-@@ -72,7 +80,7 @@ while [ "$outer_loop" -lt 20 ]; do
+@@ -74,7 +82,7 @@ while [ "$outer_loop" -lt 20 ]; do
  	while [ "$inner_loop" -lt 30 ]; do
  		inner_loop=$((inner_loop + 1))
  

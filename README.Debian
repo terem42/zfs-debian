@@ -65,4 +65,21 @@ please use zfs-initramfs with caution.
 
  TRIM jobs are scheduled on every first Sunday of month by default.
 
+4. Setting name of home datatset other than default rpool/home
+-------------------------------------------------------------------------
+
+ libpam-zfs assumes that the location of home directories follows the
+ advice in the root-on-zfs HOWTO which places them in rpool/home.  To
+ change this, add the following option to the end of the line in each of:
+
+ /etc/pam.d/common-auth
+ /etc/pam.d/common-password
+ /etc/pam.d/common-session
+ 
+ for example, from common-auth:
+ from:
+ # auth     optional    pam_zfs_key.so
+ to:
+ # auth     optional    pam_zfs_key.so    homes=homepool/home
+ 
  -- Mo Zhou <lumin@debian.org> Fri, 2 Apr 2021 12:23:00 +0000

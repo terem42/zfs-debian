@@ -395,7 +395,7 @@ Index: zfs-linux/man/Makefile.am
  	\
  	man5/vdev_id.conf.5 \
  	\
-@@ -21,6 +20,7 @@ dist_man_MANS = \
+@@ -22,6 +21,7 @@ dist_man_MANS = \
  	man7/zpoolconcepts.7 \
  	man7/zpoolprops.7 \
  	\
@@ -407,7 +407,7 @@ Index: zfs-linux/man/Makefile.in
 ===================================================================
 --- zfs-linux.orig/man/Makefile.in
 +++ zfs-linux/man/Makefile.in
-@@ -648,7 +648,6 @@ dist_man_MANS = \
+@@ -660,7 +660,6 @@ dist_man_MANS = \
  	man1/ztest.1 \
  	man1/raidz_test.1 \
  	man1/zvol_wait.1 \
@@ -415,7 +415,7 @@ Index: zfs-linux/man/Makefile.in
  	\
  	man5/vdev_id.conf.5 \
  	\
-@@ -661,6 +660,7 @@ dist_man_MANS = \
+@@ -674,6 +673,7 @@ dist_man_MANS = \
  	man7/zpoolconcepts.7 \
  	man7/zpoolprops.7 \
  	\

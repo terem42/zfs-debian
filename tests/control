@@ -13,6 +13,8 @@ Depends: fakeroot,
          linux-headers-686 [i386],
          linux-headers-arm64 [arm64],
          linux-headers-armmp [armhf],
+         linux-headers-rpi [armel],
          linux-headers-powerpc64le [ppc64el],
          linux-headers-s390x [s390x],
+         linux-headers-riscv64 [riscv64],
          @builddeps@

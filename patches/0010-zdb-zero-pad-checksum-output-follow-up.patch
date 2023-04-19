@@ -1,0 +1,34 @@
+From 57cfae4a2f04aaff10c45b3f7975e0fe3ef3e8b8 Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Wed, 15 Feb 2023 09:06:29 -0800
+Subject: [PATCH 01/13] zdb: zero-pad checksum output follow up
+
+Apply zero padding for checksums consistently.  The SNPRINTF_BLKPTR
+macro was not updated in commit ac7648179c8 which results in the
+`cli_root/zdb/zdb_checksum.ksh` test case reliably failing.
+
+Reviewed-by: Igor Kozhukhov <igor@dilos.org>
+Reviewed-by: Akash B <akash-b@hpe.com>
+Reviewed-by: Brian Atkinson <batkinson@lanl.gov>
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Closes #14497
+---
+ include/sys/spa.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/sys/spa.h b/include/sys/spa.h
+index 500eb3491..c9d03bf64 100644
+--- a/include/sys/spa.h
++++ b/include/sys/spa.h
+@@ -678,7 +678,7 @@ typedef struct blkptr {
+ 		len += func(buf + len, size - len,			\
+ 		    "[L%llu %s] %s %s %s %s %s %s %s%c"			\
+ 		    "size=%llxL/%llxP birth=%lluL/%lluP fill=%llu%c"	\
+-		    "cksum=%llx:%llx:%llx:%llx",			\
++		    "cksum=%016llx:%016llx:%016llx:%016llx",		\
+ 		    (u_longlong_t)BP_GET_LEVEL(bp),			\
+ 		    type,						\
+ 		    checksum,						\
+-- 
+2.39.2
+

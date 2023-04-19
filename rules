@@ -7,10 +7,10 @@ NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
 LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
 LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
 
-DKMSFILES := module config zfs.release.in autogen.sh META AUTHORS \
+DKMSFILES := module include config zfs.release.in autogen.sh META AUTHORS \
 		COPYRIGHT LICENSE README.md
 
-DKMSFILESEXCLUDE := module/os/freebsd module/Makefile.bsd
+DKMSFILESEXCLUDE := include/os/freebsd module/os/freebsd module/Makefile.bsd
 
 ifndef BUILD_UDEB
 BUILD_UDEB=false
@@ -59,7 +59,7 @@ endif
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
 	  --with-systemdgeneratordir=/lib/systemd/system-generators \
-	  --with-config=all
+	  --with-config=user
 
 	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
 		basename "$$i" | grep _KVERS_ && continue ; \
@@ -115,17 +115,29 @@ override_dh_auto_install:
 	@# Do not include FreeBSD kernel sources in the Linux DKMS package
 	$(foreach file,$(DKMSFILESEXCLUDE),rm -r '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' || exit 1;)
 	@# Only ever build Linux modules
-	mkdir -p '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/'
 	echo 'SUBDIRS = linux' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/include/os/Makefile.am'
-	echo 'aft000'
+
+	@# Hellish awk line:
+	@#  * Deletes from configure.ac the parts not needed for building the kernel module
+	@#     * It deletes from inside AC_CONFIG_FILES([]) everything except:
+	@#        - Makefile$
+	@#        - include/(Makefile|sys|os/(Makefile|linux))
+	@#        - module/
+	@#        - zfs.release$
+	@#  * Takes care of spaces and tabs
+	@#  * Remove reference to ZFS_AC_PACKAGE
+	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
+		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
+		{next} } {print}' \
+		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.
-	@# Do not regenerate zfs_gitrev.h during dkms build	
+	@# Do not regenerate zfs_gitrev.h during dkms build
 	sed '1,/CONFIG_KERNEL/s/SUBDIRS.*=.*//g;s/SUBDIRS.*=.*/SUBDIRS = module include/g;/make_gitrev.sh/d' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
 	@# Sanity test
 	grep -q 'SUBDIRS = module include' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/Makefile.am'
-	@# Run autogen on the stripped source tree      
-	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'
+	@# Run autogen on the stripped source tree
+	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
 
 	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
@@ -187,6 +199,7 @@ override_dh_missing:
 override_dh_installinit:
 	dh_installinit -r --no-restart-after-upgrade --name zfs-import
 	dh_installinit -r --no-restart-after-upgrade --name zfs-mount
+	dh_installinit -r --no-restart-after-upgrade --name zfs-load-key
 	dh_installinit -R --name zfs-share
 	dh_installinit -R --name zfs-zed
 

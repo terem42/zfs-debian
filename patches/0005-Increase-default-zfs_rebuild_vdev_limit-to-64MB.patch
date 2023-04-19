@@ -1,0 +1,107 @@
+From 973934b965268b5333564dbdf4e76b34cc7e7b6f Mon Sep 17 00:00:00 2001
+From: Brian Behlendorf <behlendorf1@llnl.gov>
+Date: Tue, 24 Jan 2023 15:23:32 -0800
+Subject: [PATCH] Increase default zfs_rebuild_vdev_limit to 64MB
+
+When testing distributed rebuild performance with more capable
+hardware it was observed than increasing the zfs_rebuild_vdev_limit
+to 64M reduced the rebuild time by 17%.  Beyond 64MB there was
+some improvement (~2%) but it was not significant when weighed
+against the increased memory usage. Memory usage is capped at 1/4
+of arc_c_max.
+
+Additionally, vr_bytes_inflight_max has been moved so it's updated
+per-metaslab to allow the size to be adjust while a rebuild is
+running.
+
+Reviewed-by: Akash B <akash-b@hpe.com>
+Reviewed-by: Tony Nguyen <tony.nguyen@delphix.com>
+Reviewed-by: Alexander Motin <mav@FreeBSD.org>
+Updated-by: Aron Xu <aron@debian.org>
+Signed-off-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Closes #14428
+---
+ man/man4/zfs.4            |  2 +-
+ module/zfs/vdev_rebuild.c | 27 ++++++++++++++++++---------
+ 2 files changed, 19 insertions(+), 10 deletions(-)
+
+Index: zfs/man/man4/zfs.4
+===================================================================
+--- zfs.orig/man/man4/zfs.4
++++ zfs/man/man4/zfs.4
+@@ -1706,7 +1706,7 @@ completes in order to verify the checksu
+ resilvered.
+ This is enabled by default and strongly recommended.
+ .
+-.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 32MB Pc Pq ulong
++.It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 33554432 Ns B Po 64MB Pc Pq ulong
+ Maximum amount of I/O that can be concurrently issued for a sequential
+ resilver per leaf device, given in bytes.
+ .
+Index: zfs/module/zfs/vdev_rebuild.c
+===================================================================
+--- zfs.orig/module/zfs/vdev_rebuild.c
++++ zfs/module/zfs/vdev_rebuild.c
+@@ -34,6 +34,7 @@
+ #include <sys/zio.h>
+ #include <sys/dmu_tx.h>
+ #include <sys/arc.h>
++#include <sys/arc_impl.h>
+ #include <sys/zap.h>
+ 
+ /*
+@@ -116,13 +117,12 @@ unsigned long zfs_rebuild_max_segment =
+  * segment size is also large (zfs_rebuild_max_segment=1M).  This helps keep
+  * the queue depth short.
+  *
+- * 32MB was selected as the default value to achieve good performance with
+- * a large 90-drive dRAID HDD configuration (draid2:8d:90c:2s). A sequential
+- * rebuild was unable to saturate all of the drives using smaller values.
+- * With a value of 32MB the sequential resilver write rate was measured at
+- * 800MB/s sustained while rebuilding to a distributed spare.
++ * 64MB was observed to deliver the best performance and set as the default.             
++ * Testing was performed with a 106-drive dRAID HDD pool (draid2:11d:106c)               
++ * and a rebuild rate of 1.2GB/s was measured to the distribute spare.                   
++ * Smaller values were unable to fully saturate the available pool I/O.
+  */
+-unsigned long zfs_rebuild_vdev_limit = 32 << 20;
++unsigned long zfs_rebuild_vdev_limit = 64 << 20;
+ 
+ /*
+  * Automatically start a pool scrub when the last active sequential resilver
+@@ -754,6 +754,7 @@ vdev_rebuild_thread(void *arg)
+ {
+ 	vdev_t *vd = arg;
+ 	spa_t *spa = vd->vdev_spa;
++	vdev_t *rvd = spa->spa_root_vdev;
+ 	int error = 0;
+ 
+ 	/*
+@@ -786,9 +787,6 @@ vdev_rebuild_thread(void *arg)
+ 	vr->vr_pass_bytes_scanned = 0;
+ 	vr->vr_pass_bytes_issued = 0;
+ 
+-	vr->vr_bytes_inflight_max = MAX(1ULL << 20,
+-	    zfs_rebuild_vdev_limit * vd->vdev_children);
+-
+ 	uint64_t update_est_time = gethrtime();
+ 	vdev_rebuild_update_bytes_est(vd, 0);
+ 
+@@ -805,6 +803,17 @@ vdev_rebuild_thread(void *arg)
+ 		vr->vr_scan_msp = msp;
+ 
+ 		/*
++		 * Calculate the max number of in-flight bytes for top-level
++		 * vdev scanning operations (minimum 1MB, maximum 1/4 of
++		 * arc_c_max shared by all top-level vdevs).  Limits for the
++		 * issuing phase are done per top-level vdev and are handled
++		 * separately.
++		 */
++		uint64_t limit = (arc_c_max / 4) / MAX(rvd->vdev_children, 1);
++		vr->vr_bytes_inflight_max = MIN(limit, MAX(1ULL << 20,
++		    zfs_rebuild_vdev_limit * vd->vdev_children));
++
++		/*
+ 		 * Removal of vdevs from the vdev tree may eliminate the need
+ 		 * for the rebuild, in which case it should be canceled.  The
+ 		 * vdev_rebuild_cancel_wanted flag is set until the sync task

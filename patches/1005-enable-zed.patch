@@ -9,7 +9,7 @@ Index: zfs-linux/cmd/zed/zed.d/zed.rc
 ===================================================================
 --- zfs-linux.orig/cmd/zed/zed.d/zed.rc
 +++ zfs-linux/cmd/zed/zed.d/zed.rc
-@@ -41,7 +41,7 @@ ZED_EMAIL_ADDR="root"
+@@ -42,7 +42,7 @@ ZED_EMAIL_ADDR="root"
  ##
  # Minimum number of seconds between notifications for a similar event.
  #

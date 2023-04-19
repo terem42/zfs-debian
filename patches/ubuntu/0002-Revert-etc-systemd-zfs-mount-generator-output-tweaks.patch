@@ -1,0 +1,73 @@
+From 83fbd45b461f5ddec2eedfe96ea4375452637406 Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
+Date: Mon, 17 Jan 2022 13:57:28 +0000
+Subject: [PATCH 2/3] Revert "etc/systemd/zfs-mount-generator: output tweaks"
+
+This reverts commit ec3b25825e64f37f74605c451cfc026c28920715.
+
+This is to continue support for ubuntu specific zsys patch that
+currently relies on the shell based implementation of the
+generator. See https://bugs.launchpad.net/bugs/1958142
+
+Signed-off-by: Dimitri John Ledkov <dimitri.ledkov@canonical.com>
+---
+ .../system-generators/zfs-mount-generator.c   | 22 ++++++++++++-------
+ 1 file changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/etc/systemd/system-generators/zfs-mount-generator.c b/etc/systemd/system-generators/zfs-mount-generator.c
+index b806339deb..8deeed9df0 100644
+--- a/etc/systemd/system-generators/zfs-mount-generator.c
++++ b/etc/systemd/system-generators/zfs-mount-generator.c
+@@ -281,7 +281,7 @@ line_worker(char *line, const char *cachefile)
+ 
+ 	if (strcmp(p_encroot, "-") != 0) {
+ 		char *keyloadunit =
+-		    systemd_escape(p_encroot, "zfs-load-key@", ".service");
++		    systemd_escape(p_encroot, "zfs-load-key-", ".service");
+ 
+ 		if (strcmp(dataset, p_encroot) == 0) {
+ 			const char *keymountdep = NULL;
+@@ -360,27 +360,33 @@ line_worker(char *line, const char *cachefile)
+ 			    "# dataset is a parent of the root filesystem.\n"
+ 			    "StandardOutput=null\n"
+ 			    "StandardError=null\n"
+-			    "ExecStart=/bin/sh -euc '"
+-			        "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"unavailable\" ] || exit 0;",
++			    "ExecStart=/bin/sh -c '"
++			        "set -eu;"
++			        "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
++			        "[ \"$$keystatus\" = \"unavailable\" ] || exit 0;",
+ 			    dataset);
+ 			if (is_prompt)
+ 				fprintf(keyloadunit_f,
+-				    "for i in 1 2 3; do "
++				    "count=0;"
++				    "while [ $$count -lt 3 ]; do "
+ 				        "systemd-ask-password --id=\"zfs:%s\" \"Enter passphrase for %s:\" |"
+ 				        "" ZFS " load-key \"%s\" && exit 0;"
++				        "count=$$((count + 1));"
+ 				    "done;"
+ 				    "exit 1",
+ 				    dataset, dataset, dataset);
+ 			else
+ 				fprintf(keyloadunit_f,
+-				    "exec " ZFS " load-key \"%s\"",
++				    "" ZFS " load-key \"%s\"",
+ 				    dataset);
+ 
+ 			fprintf(keyloadunit_f,
+ 				"'\n"
+-				"ExecStop=/bin/sh -euc '"
+-				    "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"available\" ] || exit 0;"
+-				    "exec " ZFS " unload-key \"%s\""
++				"ExecStop=/bin/sh -c '"
++				    "set -eu;"
++				    "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
++				    "[ \"$$keystatus\" = \"available\" ] || exit 0;"
++				    "" ZFS " unload-key \"%s\""
+ 				"'\n",
+ 				dataset, dataset);
+ 			/* END CSTYLED */
+-- 
+2.32.0
+

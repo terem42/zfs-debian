@@ -1,0 +1,40 @@
+From ac7648179c856750b719c7a9e0464466df390b26 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Rob=20N=20=E2=98=85?= <robn@despairlabs.com>
+Date: Wed, 8 Feb 2023 08:48:22 +1100
+Subject: [PATCH] zdb: zero-pad checksum output
+
+The leading zeroes are part of the checksum so we should show them.
+
+Reviewed-by: Richard Yao <richard.yao@alumni.stonybrook.edu>
+Reviewed-by: Brian Behlendorf <behlendorf1@llnl.gov>
+Signed-off-by: Rob Norris <robn@despairlabs.com>
+Closes #14464
+---
+ cmd/zdb/zdb.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+Index: zfs/cmd/zdb/zdb.c
+===================================================================
+--- zfs.orig/cmd/zdb/zdb.c
++++ zfs/cmd/zdb/zdb.c
+@@ -2305,7 +2305,8 @@ snprintf_blkptr_compact(char *blkbuf, si
+ 			(void) snprintf(blkbuf + strlen(blkbuf),
+ 			    buflen - strlen(blkbuf), " %s", "FREE");
+ 		(void) snprintf(blkbuf + strlen(blkbuf),
+-		    buflen - strlen(blkbuf), " cksum=%llx:%llx:%llx:%llx",
++		    buflen - strlen(blkbuf),
++		    " cksum=%016llx:%016llx:%016llx:%016llx",
+ 		    (u_longlong_t)bp->blk_cksum.zc_word[0],
+ 		    (u_longlong_t)bp->blk_cksum.zc_word[1],
+ 		    (u_longlong_t)bp->blk_cksum.zc_word[2],
+@@ -8213,7 +8214,9 @@ zdb_read_block(char *thing, spa_t *spa)
+ 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
+ 				ck_zio->io_bp = bp;
+ 				zio_checksum_compute(ck_zio, ck, pabd, lsize);
+-				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
++				printf(
++				    "%12s\t"
++				    "cksum=%016llx:%016llx:%016llx:%016llx\n",
+ 				    zio_checksum_table[ck].ci_name,
+ 				    (u_longlong_t)bp->blk_cksum.zc_word[0],
+ 				    (u_longlong_t)bp->blk_cksum.zc_word[1],
