@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     name: Building packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - name: clone zfs upstream repo
         shell: bash
