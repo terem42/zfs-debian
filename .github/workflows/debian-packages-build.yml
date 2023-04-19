@@ -103,7 +103,7 @@ jobs:
   deploy:
     needs: test
     name: Deploying artefacts to debian repository
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Restore cached packages
         uses: actions/cache@v1
