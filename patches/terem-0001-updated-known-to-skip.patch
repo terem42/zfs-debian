@@ -1,17 +1,17 @@
-From f3032b43d6d082f65fec013649e18499dec763f7 Mon Sep 17 00:00:00 2001
+From 709550e3d11d7815acf194376f64da60d7a25eeb Mon Sep 17 00:00:00 2001
 From: Prokopenko Andrey <andrey.prokopenko@allianz.at>
 Date: Wed, 19 Apr 2023 15:40:17 +0200
 Subject: [PATCH] set tests to skip
 
 ---
- tests/test-runner/bin/zts-report.py.in | 20 ++++++++++++++++++++
- 1 file changed, 20 insertions(+)
+ tests/test-runner/bin/zts-report.py.in | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
 
 diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
-index 432899c21..dcd63c410 100755
+index 432899c21..a75613b32 100755
 --- a/tests/test-runner/bin/zts-report.py.in
 +++ b/tests/test-runner/bin/zts-report.py.in
-@@ -291,6 +291,26 @@ elif sys.platform.startswith('linux'):
+@@ -291,6 +291,27 @@ elif sys.platform.startswith('linux'):
          'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
      })
  
@@ -33,6 +33,7 @@ index 432899c21..dcd63c410 100755
 +        'redundancy/redundancy_draid_spare1': ['SKIP', ci_reason],
 +        'redundancy/redundancy_draid_spare2': ['SKIP', ci_reason],
 +        'redundancy/redundancy_draid_spare3': ['SKIP', ci_reason],
++        'alloc_class/alloc_class_013_pos': ['SKIP', ci_reason],
 +    })
 +
  
