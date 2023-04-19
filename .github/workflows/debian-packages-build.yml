@@ -8,15 +8,15 @@ on:
 jobs:
   build:
     name: Building packages
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: clone zfs upstream repo
         shell: bash
         run: |
           mkdir ~/zfs && cd ~/zfs
           git init
-          git fetch https://github.com/openzfs/zfs.git refs/heads/master --depth=1
-          git checkout FETCH_HEAD
+          git fetch https://github.com/openzfs/zfs.git refs/tags/zfs-2.1.10:refs/tags/zfs-2.1.10 --depth=1
+          git checkout zfs-2.1.10
       - name: clone our zfs ubuntu repo
         shell: bash
         run: |
