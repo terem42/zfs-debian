@@ -53,7 +53,7 @@ jobs:
     name: Testing packages
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         testbatch:
           - 'alloc_class,limits,arc,channel_program,cp_files,deadman,btree,cache,history,hkdf,inuse,zfs_property,zfs_receive,zfs_reservation,zfs_send,zfs_set,zfs_share,zfs_snapshot,zfs_unload-key,zfs_unmount,zfs_unshare,zfs_upgrade,zpool,zpool_destroy,zpool_detach'
