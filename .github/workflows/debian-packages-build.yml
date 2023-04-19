@@ -69,7 +69,7 @@ jobs:
           - 'slog,snapshot,snapused,sparse,threadsappend,tmpfile,truncate,upgrade,userquota,vdev_zaps,write_dirs,xattr,zvol,libzfs'
     steps:
       - name: Restore cached packages
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ./zfs-deb-packages
           key: ${{ runner.OS }}-zfs-${{ github.sha }}
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - name: Restore cached packages
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ./zfs-deb-packages
           key: ${{ runner.OS }}-zfs-${{ github.sha }}
