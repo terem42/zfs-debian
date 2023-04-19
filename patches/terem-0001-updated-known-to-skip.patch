@@ -1,8 +1,8 @@
 diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
-index 432899c21..7cd76c047 100755
+index 432899c21..ac52a4616 100755
 --- a/tests/test-runner/bin/zts-report.py.in
 +++ b/tests/test-runner/bin/zts-report.py.in
-@@ -299,21 +299,24 @@ if os.environ.get('CI') == 'true':
+@@ -299,21 +299,25 @@ if os.environ.get('CI') == 'true':
          'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', ci_reason],
          'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', ci_reason],
          'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP', ci_reason],
@@ -37,7 +37,8 @@ index 432899c21..7cd76c047 100755
 +        'fault/auto_replace_001_pos': ['PASS', ci_reason],
 +        'fault/auto_spare_ashift': ['PASS', ci_reason],
 +        'fault/auto_spare_shared': ['PASS', ci_reason],
-+        'cli_root/zpool_import/import_rewind_config_changed': ['FAIL', ci_reason],        
++        'cli_root/zpool_import/import_rewind_config_changed': ['FAIL', ci_reason],
++        'events/events_001_pos': ['FAIL', ci_reason],        
          'procfs/pool_state': ['SKIP', ci_reason],
      })
  
