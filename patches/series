@@ -10,7 +10,7 @@
 3100-remove-libzfs-module-timeout.patch
 force-verbose-rules.patch
 4620-zfs-vol-wait-fix-locked-encrypted-vols.patch
-move-arcstat-1-to-8.patch
+#move-arcstat-1-to-8.patch
 skip-on-PREEMPT_RT.patch
 zzstd-version-bump.patch
 cross-compile.patch

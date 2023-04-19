@@ -37,7 +37,7 @@ usr/sbin/arcstat
 usr/sbin/dbufstat
 usr/share/zfs/compatibility.d/
 usr/share/bash-completion/completions
-usr/share/man/man8/arcstat.8
+usr/share/man/man1/arcstat.1
 usr/share/man/man1/zhack.1
 usr/share/man/man1/zvol_wait.1
 usr/share/man/man5/
