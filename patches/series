@@ -27,3 +27,4 @@ cross-compile.patch
 0006-rootdelay-on-zfs-should-be-adaptive.patch
 0009-zdb-zero-pad-checksum-output.patch
 0010-zdb-zero-pad-checksum-output-follow-up.patch
+terem-0001-updated-known-to-skip.patch
