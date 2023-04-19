@@ -1,50 +1,30 @@
-From 5fa7668f863c90c552ff7bc503d5c39489d648e6 Mon Sep 17 00:00:00 2001
-From: Prokopenko Andrey <andrey.prokopenko@allianz.at>
-Date: Wed, 19 Apr 2023 15:40:17 +0200
-Subject: [PATCH] set tests to skip
-
----
- tests/test-runner/bin/zts-report.py.in | 27 ++++++++++++++++++++++++++
- 1 file changed, 27 insertions(+)
-
 diff --git a/tests/test-runner/bin/zts-report.py.in b/tests/test-runner/bin/zts-report.py.in
-index 432899c21..6f242d1b9 100755
+index 432899c21..450442ce1 100755
 --- a/tests/test-runner/bin/zts-report.py.in
 +++ b/tests/test-runner/bin/zts-report.py.in
-@@ -291,6 +291,33 @@ elif sys.platform.startswith('linux'):
-         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
-     })
- 
-+    known.update({
-+        'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', ci_reason],
-+        'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/setup': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_001_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_002_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_004_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_005_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP', ci_reason],
-+        'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP', ci_reason],
-+        'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', ci_reason],
-+        'redundancy/redundancy_draid_damaged1': ['SKIP', ci_reason],
-+        'redundancy/redundancy_draid_damaged2': ['SKIP', ci_reason],
-+        'redundancy/redundancy_draid_spare1': ['SKIP', ci_reason],
-+        'redundancy/redundancy_draid_spare2': ['SKIP', ci_reason],
-+        'redundancy/redundancy_draid_spare3': ['SKIP', ci_reason],
-+        'alloc_class/alloc_class_013_pos': ['SKIP', ci_reason],
-+        'events/events_001_pos': ['SKIP', ci_reason],
-+        'fault/auto_online_001_pos': ['PASS', ci_reason],
-+        'fault/auto_online_002_pos': ['PASS', ci_reason],
-+        'fault/auto_online_002_pos': ['PASS', ci_reason],
-+        'fault/auto_spare_ashift': ['PASS', ci_reason],
-+        'fault/auto_spare_shared': ['PASS', ci_reason],
-+    })
-+
- 
- # Not all Github actions runners have scsi_debug module, so we may skip
- #   some tests which use it.
--- 
-2.20.1.windows.1
-
+@@ -299,15 +299,17 @@ if os.environ.get('CI') == 'true':
+         'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', ci_reason],
+         'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', ci_reason],
+         'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/setup': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_001_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_002_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_004_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_005_pos': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP', ci_reason],
+-        'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP', ci_reason],
++        'cli_root/zpool_reopen/zpool_reopen_001_pos': ['FAIL', ci_reason],
++        'cli_root/zpool_reopen/zpool_reopen_002_pos': ['FAIL', ci_reason],
++        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', ci_reason],
++        'cli_root/zpool_reopen/zpool_reopen_004_pos': ['FAIL', ci_reason],
++        'cli_root/zpool_reopen/zpool_reopen_005_pos': ['FAIL', ci_reason],
+         'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', ci_reason],
++        'redundancy/redundancy_draid_damaged1': ['FAIL', ci_reason],
++        'redundancy/redundancy_draid_damaged2': ['FAIL', ci_reason],
++        'redundancy/redundancy_draid_spare1': ['FAIL', ci_reason],
++        'redundancy/redundancy_draid_spare2': ['FAIL', ci_reason],
++        'redundancy/redundancy_draid_spare3': ['FAIL', ci_reason],
+         'fault/auto_offline_001_pos': ['SKIP', ci_reason],
+         'fault/auto_online_001_pos': ['SKIP', ci_reason],
+         'fault/auto_online_002_pos': ['SKIP', ci_reason],
