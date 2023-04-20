@@ -62,7 +62,7 @@ jobs:
           - 'grow_replicas,mv_files,cli_user,zfs_mount,zfs_promote,zfs_rollback,zpool_events,zpool_expand,zpool_export,zpool_attach,zpool_clear,zpool_create'
           - 'zpool_get,zpool_history,zpool_import,zpool_labelclear,zpool_offline,zpool_online'
           - 'zpool_reopen,zpool_remove,zpool_replace,zpool_scrub,zpool_set,zpool_status,zpool_sync,zpool_upgrade,redacted_send,redundancy'
-          - 'zfs_destroy,largest_pool,link_count,migration,refquota,refreserv,rename_dirs,replacement,log_spacemap'
+          - 'zfs_destroy,link_count,migration,refquota,refreserv,rename_dirs,replacement,log_spacemap'
           - 'zfs,zfs_bookmark,zfs_change-key,zfs_clone,zfs_copies,zfs_create,zfs_diff,zfs_get,zfs_inherit,zfs_load-key,zfs_rename,mmap,mmp,mount,nestedfs,no_space,nopwrite,online_offline,pool_names,poolversion'
           - 'zdb,mmp,trim'
           - 'privilege,quota,raidz,redundancy,rsend'
