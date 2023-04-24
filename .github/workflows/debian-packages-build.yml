@@ -48,11 +48,15 @@ jobs:
           echo "current folder"
           pwd
           cd ~/zfs
-          sed -i "s/\$upstream_sha/$(git rev-parse HEAD)/g" ./debian/changelog
-          sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog          
-          dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
+            ./autogen.sh
+          ./configure --enable-debug --enable-debuginfo --enable-asan --enable-ubsan
+          make --no-print-directory --silent native-deb-utils native-deb-kmod                    
+          #sed -i "s/\$upstream_sha/$(git rev-parse HEAD)/g" ./debian/changelog
+          #sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog          
+          #dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
           mkdir ./zfs-deb-packages
           cp ../*.deb ./zfs-deb-packages
+          rm ./zfs-deb-packages/openzfs-zfs-dracut*.deb ./zfs-deb-packages/openzfs-zfs-dkms*.deb
           ls ./zfs-deb-packages -al
       - name: cache created packages
         uses: actions/cache@v1
