@@ -55,4 +55,3 @@ wget
 xfslibs-dev
 xz-utils
 zlib1g-dev
-dh-sequence-dkms
