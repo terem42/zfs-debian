@@ -36,8 +36,9 @@ jobs:
           sudo apt-get update
           sudo apt upgrade
           cd ~/zfs/debian
-          pwd
-          ls -al
+          sudo add-apt-repository ppa:jonathonf/libabigail
+          sudo apt update
+          sudo apt install -qq abigail-tools
           sudo xargs --arg-file=.github/workflows/build-dependencies.txt apt-get install -qq
           sudo apt-get clean
           sudo dmesg -c > /var/tmp/dmesg-prerun          
