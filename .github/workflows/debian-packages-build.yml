@@ -35,6 +35,9 @@ jobs:
           sudo apt-get remove grub-efi-amd64-bin grub-efi-amd64-signed shim-signed --allow-remove-essential
           sudo apt-get update
           sudo apt upgrade
+          cd ~/zfs/debian
+          pwd
+          ls -al
           sudo xargs --arg-file=.github/workflows/build-dependencies.txt apt-get install -qq
           sudo apt-get clean
           sudo dmesg -c > /var/tmp/dmesg-prerun          
