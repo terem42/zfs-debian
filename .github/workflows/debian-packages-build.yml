@@ -48,8 +48,7 @@ jobs:
           pwd
           cd ~/zfs
           sed -i "s/\$upstream_sha/$(git rev-parse HEAD)/g" ./debian/changelog
-          sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes $(dpkg-checkbuilddeps 2>&1 | sed -e 's/dpkg-checkbuilddeps:\serror:\sUnmet build dependencies: //g' -e  's/[\(][^)]*[\)] //g')
+          sed -i "s/\$github_run_number/${{ github.run_number }}/g" ./debian/changelog          
           dpkg-buildpackage -b -rfakeroot -us -uc --no-sign
           mkdir ./zfs-deb-packages
           cp ../*.deb ./zfs-deb-packages
