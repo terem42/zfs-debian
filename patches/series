@@ -23,8 +23,8 @@ cross-compile.patch
 #ubuntu/4510-silently-ignore-modprobe-failure.patch
 #ubuntu/4751-suppress-types.patch
 #0004-Increase-default-zfs_scan_vdev_limit-to-16MB.patch
-0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch
-0006-rootdelay-on-zfs-should-be-adaptive.patch
-0009-zdb-zero-pad-checksum-output.patch
-0010-zdb-zero-pad-checksum-output-follow-up.patch
+#0005-Increase-default-zfs_rebuild_vdev_limit-to-64MB.patch
+#0006-rootdelay-on-zfs-should-be-adaptive.patch
+#0009-zdb-zero-pad-checksum-output.patch
+#0010-zdb-zero-pad-checksum-output-follow-up.patch
 terem-0001-updated-known-to-skip.patch
