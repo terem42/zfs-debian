@@ -1,0 +1,460 @@
+Package: openzfs-libnvpair3
+Priority: optional
+Section: contrib/libs
+Installed-Size: 116
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libnvpair1, libnvpair3, libnvpair3linux
+Depends: libc6 (>= 2.14), libtirpc3 (>= 1.0.2)
+Conflicts: libnvpair3linux
+Breaks: libnvpair1, libnvpair3
+Filename: pool/main/o/openzfs-linux/openzfs-libnvpair3_2.2.0-0_amd64.deb
+Size: 37756
+MD5sum: fd52f8dd0235057b4c7a422901ab0e62
+SHA1: abb4c0bfa33ee5b92bbcf03b597d68f2253b7835
+SHA256: ee3b0437313c63989b7bd27970315996576c732ce6546977b25d97e3407ec8e0
+SHA512: cdd8e34fec48c0ca6af086d440375ba10e595339c3692a7f15ac709557a16de0924ebcc8f5ec7dc868af51b38da1074cf63c89526764a815f9b7b263034ff5b3
+Description: Solaris name-value library for Linux
+ This library provides routines for packing and unpacking nv pairs for
+ transporting data across process boundaries, transporting between
+ kernel and userland, and possibly saving onto disk files.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libpam-zfs
+Priority: optional
+Section: contrib/admin
+Installed-Size: 41
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libpam-zfs
+Depends: libpam-runtime, libc6 (>= 2.14), libpam0g (>= 1.1.0), libssl3 (>= 3.0.0~~alpha1), openzfs-libnvpair3 (>= 2.2.0), openzfs-libzfs4 (>= 2.2.0)
+Conflicts: libpam-zfs
+Filename: pool/main/o/openzfs-linux/openzfs-libpam-zfs_2.2.0-0_amd64.deb
+Size: 10066
+MD5sum: c711218865a3020977ac2824a108aadb
+SHA1: aa5df16aa1556db29143c8122729af813a57b618
+SHA256: 3b44fb0109558b94bbb51d314c740d93d46773949f596d92d9e6c07b14014a8b
+SHA512: da076d8b4f18e65d4adcfc76fe0e7f268ee028c41bdb4e0dfd6c1ed58a182faee72ec58c730c7ff89eb9dbc137b235228973f38fb76447172d30e227c4a868f1
+Description: PAM module for managing encryption keys for ZFS
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This provides a Pluggable Authentication Module (PAM) that automatically
+ unlocks encrypted ZFS datasets upon login.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libuutil3
+Priority: optional
+Section: contrib/libs
+Installed-Size: 84
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libuutil1, libuutil3, libuutil3linux
+Depends: libc6 (>= 2.34)
+Conflicts: libuutil3linux
+Breaks: libuutil1, libuutil3
+Filename: pool/main/o/openzfs-linux/openzfs-libuutil3_2.2.0-0_amd64.deb
+Size: 28794
+MD5sum: 16fcf23ab885497f4561ca9e2d398c3c
+SHA1: c6486f08c79b30a7a5e655b13dea9860f4250ea6
+SHA256: f03a7b5095c2839d64bd0dea0b68b06d994506e6206cc8626faba0e73377b151
+SHA512: 2dd8688b500289801a4d317c9c69dd89b56ee07168535aa44b59c5d078040fef96717c80be461b9b04ede342529a46048757de8ba60055521b6cd8cff6503d10
+Description: Solaris userland utility library for Linux
+ This library provides a variety of glue functions for ZFS on Linux:
+  * libspl: The Solaris Porting Layer userland library, which provides APIs
+    that make it possible to run Solaris user code in a Linux environment
+    with relatively minimal modification.
+  * libavl: The Adelson-Velskii Landis balanced binary tree manipulation
+    library.
+  * libefi: The Extensible Firmware Interface library for GUID disk
+    partitioning.
+  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libzfs-dev
+Priority: optional
+Section: contrib/libdevel
+Installed-Size: 11405
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libzfslinux-dev
+Provides: libnvpair-dev, libuutil-dev
+Depends: libssl-dev | libssl1.0-dev, openzfs-libnvpair3 (= 2.2.0-0), openzfs-libuutil3 (= 2.2.0-0), openzfs-libzfs4 (= 2.2.0-0), openzfs-libzfsbootenv1 (= 2.2.0-0), openzfs-libzpool5 (= 2.2.0-0)
+Conflicts: libzfslinux-dev
+Filename: pool/main/o/openzfs-linux/openzfs-libzfs-dev_2.2.0-0_amd64.deb
+Size: 2097906
+MD5sum: ae5db8f3857c3c12af4118fda9d2f9c0
+SHA1: a8a95e5c50e06733673e378383b5dc00f1687aab
+SHA256: a48c2d8fbf6270a8e246c528d3ca095420c79f5b6c5bd1e1d140f76b6b8db26e
+SHA512: 312766e82769c5afc051a703e47de7dfd8504021dad5f2700eb3b5c996bba849d63a8ec23e818ae2e7c0d8da3461371bf4d3e5bb882f82ad9afbee3bb507277e
+Description: OpenZFS filesystem development files for Linux
+ Header files and static libraries for compiling software against
+ libraries of OpenZFS filesystem.
+ .
+ This package includes the development files of libnvpair3, libuutil3,
+ libzpool5 and libzfs4.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libzfs4
+Priority: optional
+Section: contrib/libs
+Installed-Size: 561
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libzfs2, libzfs4, libzfs4linux
+Depends: libblkid1 (>= 2.16), libc6 (>= 2.34), libssl3 (>= 3.0.0~~alpha1), libudev1 (>= 183), libuuid1 (>= 2.16), openzfs-libnvpair3 (>= 2.2.0), openzfs-libuutil3 (>= 2.2.0), zlib1g (>= 1:1.1.4)
+Recommends: libcurl4
+Conflicts: libzfs4linux
+Breaks: libzfs2, libzfs4
+Filename: pool/main/o/openzfs-linux/openzfs-libzfs4_2.2.0-0_amd64.deb
+Size: 219646
+MD5sum: 4a9485ff1c95b51c3f4061486bee3396
+SHA1: 0a1b4763b0726b811fb673983bd078a4b30d677d
+SHA256: 485f6e0a4f87a2695678a5511c45c5b5eda8266a139be8603f7c0048eaf13d67
+SHA512: e1aebf920c0821c5510eb134793e86226c590aed75b2549f054c941344df49f5711e599e903aac1bfcd9c9c04a16b839a712bfdaeb66b2c008ab41c50cb95fbe
+Description: OpenZFS filesystem library for Linux - general support
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ The OpenZFS library provides support for managing OpenZFS filesystems.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libzfsbootenv1
+Priority: optional
+Section: contrib/libs
+Installed-Size: 44
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libzfs2, libzfs4, libzfsbootenv1linux
+Depends: libc6 (>= 2.8), openzfs-libnvpair3 (>= 2.2.0), openzfs-libzfs4 (>= 2.2.0)
+Conflicts: libzfsbootenv1linux
+Breaks: libzfs2, libzfs4
+Filename: pool/main/o/openzfs-linux/openzfs-libzfsbootenv1_2.2.0-0_amd64.deb
+Size: 13682
+MD5sum: 86817aecae3315556c202513999bbbe5
+SHA1: 6fa19d2af7d0ff8ec24bfa1b5bd4e18a3eec0138
+SHA256: 8dcc36a2c49ad42b3690d10341ffd957d3292644786b92e144439441fe41ccd2
+SHA512: 205ed2d655b37ba5672213af66e1a32af22f83aacb7d232bf14293867ad261dd9e5ef83409fbc797f3bfd049439b84674e0074bfff81947e7a7bfad8860c38f7
+Description: OpenZFS filesystem library for Linux - label info support
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ The zfsbootenv library provides support for modifying ZFS label information.
+Homepage: https://openzfs.org/
+
+Package: openzfs-libzpool5
+Priority: optional
+Section: contrib/libs
+Installed-Size: 4053
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: libzpool2, libzpool5, libzpool5linux
+Depends: libblkid1 (>= 2.16), libc6 (>= 2.34), libudev1 (>= 183), libuuid1 (>= 2.16), openzfs-libnvpair3 (>= 2.2.0), zlib1g (>= 1:1.1.4)
+Conflicts: libzpool5linux
+Breaks: libzpool2, libzpool5
+Filename: pool/main/o/openzfs-linux/openzfs-libzpool5_2.2.0-0_amd64.deb
+Size: 1389478
+MD5sum: 9e15a2edd01a6adcdb10b2031c67699c
+SHA1: 1d6e615eb1d338c01560ad248262a0f0f25b8ef6
+SHA256: 453099a475f0fb1bab792a5bddb98e51ea8f78ce6668c30d897c3bcb98cde852
+SHA512: 340aae2fa0a3837f158db5abfd4195d98094ffdacf6a7e4efedab08df209dd4a81fde2f710bf2fadbadeab9e673e2b39c5a007644845a93ab531f87a1d9d2992
+Description: OpenZFS pool library for Linux
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This zpool library provides support for managing zpools.
+Homepage: https://openzfs.org/
+
+Package: openzfs-python3-pyzfs
+Priority: optional
+Section: contrib/python
+Installed-Size: 371
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: python3-pyzfs
+Depends: python3-cffi, openzfs-zfsutils (= 2.2.0-0), python3-cffi-backend-api-min (<= 9729), python3-cffi-backend-api-max (>= 9729), python3:any
+Conflicts: python3-pyzfs
+Filename: pool/main/o/openzfs-linux/openzfs-python3-pyzfs_2.2.0-0_amd64.deb
+Size: 46694
+MD5sum: 961e1a521f386c92e54b534090db023f
+SHA1: 55855f9ed9ffd4f709987155acbf9d83b7b02902
+SHA256: 0b065395e8605cf0315aaa29d9775718b9cf944194c3093da5d372faf8116a93
+SHA512: 37401533b040b986babc8eb5bc1a7fca662add4efb32515f616cb5dbdb139b3dd0309e8173903387cc7e09be02f1afd127cf858b98db5b8525a4e3c3ed74cfd8
+Description: wrapper for libzfs_core C library
+ libzfs_core is intended to be a stable interface for programmatic
+ administration of ZFS. This wrapper provides one-to-one wrappers for
+ libzfs_core API functions, but the signatures and types are more natural to
+ Python.
+ .
+ nvlists are wrapped as dictionaries or lists depending on their usage.
+ Some parameters have default values depending on typical use for
+ increased convenience. Enumerations and bit flags become strings and lists
+ of strings in Python. Errors are reported as exceptions rather than integer
+ errno-style error codes.  The wrapper takes care to provide one-to-many
+ mapping of the error codes to the exceptions by interpreting a context
+ in which the error code is produced.
+Homepage: https://openzfs.org/
+
+Package: openzfs-pyzfs-doc
+Priority: optional
+Section: contrib/doc
+Installed-Size: 401
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: all
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: pyzfs-doc
+Depends: libjs-sphinxdoc (>= 4.3)
+Recommends: openzfs-python3-pyzfs
+Conflicts: pyzfs-doc
+Filename: pool/main/o/openzfs-linux/openzfs-pyzfs-doc_2.2.0-0_all.deb
+Size: 34588
+MD5sum: 35ed5dcdb0d1d919f1be1166be34ebc2
+SHA1: b37edeb5d00f58c12ec2e11fd0cda1bfc0e54c3b
+SHA256: 6d94b14071144554d76fb38a3369920e25c031ad693ece028dd5029ed74adbbd
+SHA512: 36ec80bff76e3944d34eda2ae44c04f952d4697b3476faf8d491d4640ff606a3add84cb2b23c47efc0c5673986b66b6f5e3ba23eeb7d6a35381a37b5cbaade45
+Description: wrapper for libzfs_core C library (documentation)
+ libzfs_core is intended to be a stable interface for programmatic
+ administration of ZFS. This wrapper provides one-to-one wrappers for
+ libzfs_core API functions, but the signatures and types are more natural to
+ Python.
+ .
+ nvlists are wrapped as dictionaries or lists depending on their usage.
+ Some parameters have default values depending on typical use for
+ increased convenience. Enumerations and bit flags become strings and lists
+ of strings in Python. Errors are reported as exceptions rather than integer
+ errno-style error codes.  The wrapper takes care to provide one-to-many
+ mapping of the error codes to the exceptions by interpreting a context
+ in which the error code is produced.
+ .
+ This package contains the documentation.
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfs-dkms
+Priority: optional
+Section: contrib/kernel
+Installed-Size: 19388
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: all
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: spl-dkms, zfs-dkms
+Provides: openzfs-zfs-modules
+Depends: dkms (>> 2.1.1.2-5), file, libc6-dev | libc-dev, lsb-release, python3-distutils | libpython3-stdlib (<< 3.6.4), debconf (>= 0.5) | debconf-2.0, perl:any
+Recommends: openzfs-zfs-zed, openzfs-zfsutils (>= 2.2.0-0), linux-libc-dev (<< 6.6~), linux-libc-dev (>= 3.10~)
+Suggests: debhelper
+Conflicts: zfs-dkms
+Breaks: spl-dkms (<< 0.8.0~rc1)
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-dkms_2.2.0-0_all.deb
+Size: 2556470
+MD5sum: 2e191f6120ca773bf24920b257ab5637
+SHA1: f0ca961fda8771dc369cc8fb4524a22a569dc5a6
+SHA256: 89ce047d5a86b99a86688023105bf627c4555f6be5a40583859654913db52d06
+SHA512: b1941e7e4defee41ca251bdc9e43acc9d656179b9afcd8713b1d29722c84c23a104c9a429f09f4427648100251836ba72fb4b877b9a5a049a376f4336dd02194
+Description: OpenZFS filesystem kernel modules for Linux
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This DKMS package includes the SPA, DMU, ZVOL, and ZPL components of
+ OpenZFS.
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfs-dracut
+Priority: optional
+Section: contrib/kernel
+Installed-Size: 49
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: all
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: zfs-dracut
+Depends: dracut, openzfs-zfs-modules | openzfs-zfs-dkms, openzfs-zfsutils (>= 2.2.0-0)
+Conflicts: zfs-dracut
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-dracut_2.2.0-0_all.deb
+Size: 12472
+MD5sum: 90007849778ca73ba75c1193fe21f519
+SHA1: b33aec6bf219b507cf7a00a0f0b25417f9fd3839
+SHA256: e57b9e7564997b38d99eca6742d17d3b8f26463d0241b562c519d7808f6c231b
+SHA512: ce850846a28878a5ccda805877fa0443577269ba15ccf3d3c87cd85bc971a38e21217adcc0cd50e93ef3d91156561ac4176185d2381dedd6d115ac28a2609da5
+Description: OpenZFS root filesystem capabilities for Linux - dracut
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This package adds OpenZFS to the system initramfs with a hook
+ for the dracut infrastructure.
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfs-initramfs
+Priority: optional
+Section: contrib/kernel
+Installed-Size: 53
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: all
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: zfs-initramfs, zfsutils-linux (<= 0.7.11-2)
+Depends: busybox-initramfs | busybox-static | busybox, initramfs-tools, openzfs-zfs-modules | openzfs-zfs-dkms, openzfs-zfsutils (>= 2.2.0-0)
+Conflicts: zfs-initramfs
+Breaks: zfsutils-linux (<= 0.7.11-2)
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-initramfs_2.2.0-0_all.deb
+Size: 12644
+MD5sum: 836837c475e7e6bbf74fa3a767da1bae
+SHA1: 3f0b9f981533b0a24e57ab4d1d6cade3660bfb1b
+SHA256: 240c6d4ee65aaffc426c76f09dac33ce215c4e317572d2ebc7b9e95e6c2540cf
+SHA512: d22f8b4ed7e9ab7e696f720807f79e2424acc303667d3c270b2c4d771c0ae17ecd9c1ca92b0213a0d5772ead231c6d8c59f6845d1478cb0229fcdd93a87d5cfb
+Description: OpenZFS root filesystem capabilities for Linux - initramfs
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This package adds OpenZFS to the system initramfs with a hook
+ for the initramfs-tools infrastructure.
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfs-modules-6.2.0-1012-azure
+Priority: optional
+Section: contrib/kernel
+Installed-Size: 93823
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: zfs-modules-6.2.0-1012-azure
+Provides: openzfs-zfs-modules
+Depends: linux-image-6.2.0-1012-azure | raspberrypi-kernel
+Recommends: openzfsutils
+Conflicts: zfs-modules-6.2.0-1012-azure
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-modules-6.2.0-1012-azure_2.2.0-0_amd64.deb
+Size: 17582878
+MD5sum: d1d35b258908d93644c0b68bc8372e58
+SHA1: 9634ade1530cdbad46b16fa6ac534b881e5d5c21
+SHA256: 2af5415871676e7380b93e7f119fcac1b200607e01de33ed267f20c6a730017f
+SHA512: eba4fce34419c2abddd009e6bfa94e4f05e6a7ce4b032f944670fee4be13684f9f6bafa8c9460e9b5706c6e2fc20131f8e83d1fd52877ebe2968322ef92f28bf
+Description: OpenZFS filesystem kernel modules for Linux (kernel 6.2.0-1012-azure)
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features.
+ .
+ This package contains the compiled kernel module for 6.2.0-1012-azure
+ .
+ Includes the SPA, DMU, ZVOL, and ZPL components of OpenZFS.
+ .
+ If you have compiled your own kernel, you will most likely need to build
+ your own zfs-modules. The zfs-source package has been
+ provided for use with the Debian kernel-package utility to produce a
+ version of zfs-module for your kernel.
+Homepage: http://www.openzfs.org/
+
+Package: openzfs-zfs-test
+Priority: optional
+Section: contrib/admin
+Installed-Size: 34469
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: zfs-test, zfsutils-linux (<= 0.7.9-2)
+Depends: acl, attr, bc, fio, ksh, lsscsi, mdadm, parted, python3, openzfs-python3-pyzfs, sudo, sysstat, openzfs-zfs-modules | openzfs-zfs-dkms, openzfs-zfsutils (>= 2.2.0-0), libaio1 (>= 0.3.93), libc6 (>= 2.34), libudev1 (>= 183), openzfs-libnvpair3 (>= 2.2.0), openzfs-libzfs4 (>= 2.2.0), openzfs-libzpool5 (>= 2.2.0), zlib1g (>= 1:1.2.3.3)
+Recommends: nfs-kernel-server
+Conflicts: zfs-test, zutils
+Breaks: zfsutils-linux (<= 0.7.9-2)
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-test_2.2.0-0_amd64.deb
+Size: 28573864
+MD5sum: d05e554ae21cb6e7cb30ea42c7f584d7
+SHA1: a0929cadabb9a2aecad103551ed11593b2366e5f
+SHA256: a9da2a001706400236f90879b430a3db73473de2182515d68c0861e811403948
+SHA512: e95c39c5ce97357997c47f3df6ccbbb5d427ec8f098d51f340c0be31bb3eb394835ec2546e2ec809feefcb18ddf759dc20a5415694b6fa5bd5a77356c29b2249
+Description: OpenZFS test infrastructure and support scripts
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This package provides the OpenZFS test infrastructure for destructively
+ testing and validating a system using OpenZFS. It is entirely optional
+ and should only be installed and used in test environments.
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfs-zed
+Priority: optional
+Section: contrib/admin
+Installed-Size: 218
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: zfs-zed
+Depends: openzfs-zfs-modules | openzfs-zfs-dkms, openzfs-zfsutils (>= 2.2.0-0), libc6 (>= 2.34), libudev1 (>= 183), libuuid1 (>= 2.16), openzfs-libnvpair3 (>= 2.2.0), openzfs-libuutil3 (>= 2.2.0), openzfs-libzfs4 (>= 2.2.0)
+Pre-Depends: init-system-helpers (>= 1.54~)
+Conflicts: zfs, zfs-zed
+Filename: pool/main/o/openzfs-linux/openzfs-zfs-zed_2.2.0-0_amd64.deb
+Size: 57266
+MD5sum: d35aa46cefb97a45ff6e2650e114002a
+SHA1: 811cfa359b898f3a7907eb5eded09354abd87900
+SHA256: 0ea5de8253ed0a3d8eef632c9a914c9345539282e1aa8637e70d8b9e2d264786
+SHA512: 1556ab98c555c83ed22e10e1506f854bd1fb1c366841fe6017b5c30db263dbcdc0f987414e22ca0ace16ae607f7311127f5bb770e439497a429c56633f4e8dd3
+Description: OpenZFS Event Daemon
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ ZED (ZFS Event Daemon) monitors events generated by the ZFS kernel
+ module. When a zevent (ZFS Event) is posted, ZED will run any ZEDLETs
+ (ZFS Event Daemon Linkage for Executable Tasks) that have been enabled
+ for the corresponding zevent class.
+ .
+ This package provides the OpenZFS Event Daemon (zed).
+Homepage: https://openzfs.org/
+
+Package: openzfs-zfsutils
+Priority: optional
+Section: contrib/admin
+Installed-Size: 1727
+Maintainer: ZFS on Linux specific mailing list <zfs-discuss@list.zfsonlinux.org>
+Architecture: amd64
+Source: openzfs-linux
+Version: 2.2.0-0
+Replaces: spl (<< 0.7.9-2), spl-dkms, zfsutils-linux
+Provides: openzfsutils
+Depends: openzfs-libnvpair3 (= 2.2.0-0), openzfs-libuutil3 (= 2.2.0-0), openzfs-libzfs4 (= 2.2.0-0), openzfs-libzpool5 (= 2.2.0-0), python3, libblkid1 (>= 2.16), libc6 (>= 2.34), libssl3 (>= 3.0.0~~alpha1), libudev1 (>= 183), libuuid1 (>= 2.16)
+Pre-Depends: init-system-helpers (>= 1.54~)
+Recommends: lsb-base, openzfs-zfs-modules | openzfs-zfs-dkms, openzfs-zfs-zed
+Suggests: nfs-kernel-server, samba-common-bin (>= 3.0.23), openzfs-zfs-initramfs | openzfs-zfs-dracut
+Conflicts: zfs, zfs-fuse, zfsutils-linux
+Breaks: openrc, openzfs-zfs-dkms (>> 2.2.0-0...), openzfs-zfs-dkms (<< 2.2.0-0), spl (<< 0.7.9-2), spl-dkms (<< 0.8.0~rc1)
+Filename: pool/main/o/openzfs-linux/openzfs-zfsutils_2.2.0-0_amd64.deb
+Size: 560870
+MD5sum: 2210559c3c8e7d262d91f9ed57a17955
+SHA1: 07959af46f9902b690eafe37651e00b4d45e8579
+SHA256: 3e363d40da3329273a62be1d789a8c28244cb53f6e44310a9f53d72cdd741549
+SHA512: f8cc4b031a4946b24a7b9b93d03c6d2385b1ebc6d15f829a1102c5614a5c9aa6013db77b02cea87ab4274ffaff1ecd14be6b97af0bbeefe185eff1b41fcf94c2
+Description: command-line tools to manage OpenZFS filesystems
+ OpenZFS is a storage platform that encompasses the functionality of
+ traditional filesystems and volume managers. It supports data checksums,
+ compression, encryption, snapshots, and more.
+ .
+ This package provides the zfs and zpool commands to create and administer
+ OpenZFS filesystems.
+Homepage: https://openzfs.org/
+
