@@ -1,8 +1,8 @@
-zfs-linux (2.1.12-terem1) unstable; urgency=medium
+zfs-linux (2.2.0-terem1) unstable; urgency=medium
 
-  * Build on 2.1.12 tag from openzfs upstream
+  * Build on 2.2.0 tag from openzfs upstream
 
- -- Andrey Prokopenko <job@terem.fr>  Tue, 08 Aug 2023 08:01:10 +0200
+ -- Andrey Prokopenko <job@terem.fr>  Tue, 16 Oct 2023 08:01:10 +0200
 
 zfs-linux (2.1.10-1) UNRELEASED; urgency=medium
 
